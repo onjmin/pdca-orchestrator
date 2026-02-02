@@ -40,3 +40,9 @@ ElvesShoemaker は、RTX 5060 Ti 等のコンシューマー環境で動作を�
 - **vRAM 16GB (RTX 5060 Ti 等)**
 - **LM Studio**
 - **Node.js**
+
+## ライセンス
+- [MIT](./LICENSE)
+
+## 開発者 / Author
+- [おんJ民](https://github.com/onjmin)
