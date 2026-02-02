@@ -1,47 +1,43 @@
-// mcp/schema.ts
-import * as v from "valibot";
-
-/* =========================================================
- * ToolCall（orchestrator → MCP）
- * ======================================================= */
+import { z } from "zod";
 
 /**
- * すべてのMCP呼び出しの共通フォーマット
- * args は tool 側で具体validateするため unknown
+ * MCPツール実行結果の基本構造
  */
-export const ToolCallSchema = v.object({
-	name: v.string(),
-	args: v.unknown(),
+export const ToolResultSchema = z.object({
+	toolCallId: z.string().optional(),
+	output: z.string(),
+	isError: z.boolean().default(false),
 });
 
-export type ToolCall = v.InferOutput<typeof ToolCallSchema>;
-
-/* =========================================================
- * ToolResult（MCP → orchestrator）
- * ======================================================= */
+export type ToolResult = z.infer<typeof ToolResultSchema>;
 
 /**
- * 例外を投げず、必ずこの形で返す（超重要）
- * orchestratorは ok だけ見ればよくなる
+ * 成功時のレスポンス生成ヘルパー
  */
-export const ToolResultSchema = v.object({
-	ok: v.boolean(),
-	data: v.optional(v.unknown()),
-	error: v.optional(v.string()),
+export function ok(output: string = "success"): ToolResult {
+	return {
+		output,
+		isError: false,
+	};
+}
+
+/**
+ * 失敗時のレスポンス生成ヘルパー
+ */
+export function fail(error: unknown): ToolResult {
+	return {
+		output: error instanceof Error ? error.message : String(error),
+		isError: true,
+	};
+}
+
+/**
+ * LLMからのツール呼び出し構造
+ */
+export const ToolCallSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	arguments: z.record(z.string(), z.any()),
 });
 
-export type ToolResult = v.InferOutput<typeof ToolResultSchema>;
-
-/* =========================================================
- * ヘルパー（任意・実務で便利）
- * ======================================================= */
-
-export const ok = (data?: unknown): ToolResult => ({
-	ok: true,
-	data,
-});
-
-export const fail = (error: unknown): ToolResult => ({
-	ok: false,
-	error: String(error),
-});
+export type ToolCall = z.infer<typeof ToolCallSchema>;

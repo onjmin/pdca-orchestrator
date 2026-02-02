@@ -1,5 +1,4 @@
 import "dotenv/config";
-
 import { askLLM } from "../../llm/client";
 
 async function main() {

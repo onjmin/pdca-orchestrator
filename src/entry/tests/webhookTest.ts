@@ -1,5 +1,4 @@
 import "dotenv/config";
-
 import { webhook } from "../../mcp/webhook";
 
 async function main() {
