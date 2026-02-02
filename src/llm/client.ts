@@ -22,7 +22,7 @@ async function getMcpTools() {
 }
 
 /**
- * 脊髄（オーケストレーター）からの指示を受け、脳（LLM）に推論を依頼する
+ * オーケストレーターからの指示を受け、LLMに推論を依頼する
  */
 export async function callLLM(context: PDCAContext, systemPrompt: string) {
 	// ツール一覧を非同期で取得
