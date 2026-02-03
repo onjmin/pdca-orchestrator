@@ -4,8 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test:webhook": "tsx src/entry/tests/webhookTest.ts",
-    "test:llm": "tsx src/entry/tests/llmClientTest.ts"
+    "test": "tsx src/workflow/tests/web-messenger-test.ts"
   },
   "keywords": [],
   "author": "onjmin",
