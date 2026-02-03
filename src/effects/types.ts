@@ -1,12 +1,12 @@
-// すべての Effect が返す共通のレスポンス形式
+// すべてのエフェクトで共通のレスポンス形式
 export interface EffectResponse<T = any> {
     success: boolean;
-    summary: string;
-    data?: T;
+    summary: string; // LLMが次の一手を決めるための短い報告
+    data?: T;        // プログラムが利用する詳細データ
     error?: string;
 }
 
-// Effect の定義。T は入力引数の型
+// エフェクト定義のインターフェース
 export interface EffectDefinition<T> {
     name: string;
     description: string;
@@ -15,13 +15,11 @@ export interface EffectDefinition<T> {
 }
 
 export const effectResult = {
-    // 成功時のレスポンス生成
     ok: <T>(summary: string, data?: T): EffectResponse<T> => ({
         success: true,
         summary,
         data,
     }),
-    // 失敗時のレスポンス生成
     fail: (error: string): EffectResponse => ({
         success: false,
         summary: `Error: ${error}`,
