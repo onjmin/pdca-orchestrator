@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { promises as fs } from "node:fs";
+import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
@@ -71,12 +73,34 @@ const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.from
 );
 
 async function main() {
-	// 1. 初手のタスク投入 (ここは基盤側で行う)
-	taskStack.push({
+	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
+	const goalPath = resolve(process.cwd(), "GOAL");
+	let initialTask = {
 		title: "Initial Goal",
-		description: process.argv[2] || "Establish the development environment.",
+		description: "Establish the development environment.",
 		dod: "Goal achieved.",
-	});
+	};
+
+	try {
+		const rawContent = await fs.readFile(goalPath, "utf-8");
+		const parts = rawContent.split("---").map((s) => s.trim());
+
+		// 3要素（タイトル、説明、完了条件）が揃っているか厳密にチェック
+		if (parts.length !== 3) {
+			throw new Error(
+				`⚠️ GOAL file format is invalid. Found ${parts.length} parts, but exactly 3 parts separated by '---' are required.`,
+			);
+		}
+
+		const [title, description, dod] = parts;
+		initialTask = { title, description, dod };
+	} catch (err) {
+		// ファイルがない、あるいはフォーマットエラーの場合
+		const msg = err instanceof Error ? err.message : String(err);
+		throw new Error(`[CRITICAL] Failed to initialize task: ${msg}`);
+	}
+
+	taskStack.push(initialTask);
 
 	// 2. 初手のエフェクトを選択 (LLMがスタックを見て "task.check" を選ぶ)
 	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";

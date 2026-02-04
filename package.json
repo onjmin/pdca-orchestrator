@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx src/workflow/tests/task-report-test.ts"
+    "start": "tsx src/workflow/index.ts",
+    "dev": "tsx src/workflow/index.ts",
+    "test": "tsx src/workflow/tests/task-report-test.ts",
+    "lint": "biome check src"
   },
   "keywords": [],
   "author": "onjmin",

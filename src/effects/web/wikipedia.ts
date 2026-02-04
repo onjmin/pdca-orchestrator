@@ -31,7 +31,7 @@ export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
 		type: "object",
 		properties: {
 			query: { type: "string" },
-			language: { type: "string", default: "ja" },
+			language: { type: "string", default: "en" },
 		},
 		required: ["query"],
 	},

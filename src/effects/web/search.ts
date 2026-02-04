@@ -1,19 +1,13 @@
-import { spawn } from "child_process";
 import { z } from "zod";
+import { mcpManager } from "../../core/mcp-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
-const BRAVE_MCP_PATH = process.env.BRAVE_MCP_PATH ?? "path/to/brave-search/dist/index.js";
-const BRAVE_API_KEY = process.env.BRAVE_API_KEY ?? "";
-
-// Brave MCP のレスポンス構造を定義
-interface BraveMcpResponse {
-	result: {
-		content: Array<{
-			title?: string;
-			url?: string;
-			description?: string;
-		}>;
-	};
+// DuckDuckGo MCP のレスポンス構造（ツール実行結果）
+interface DuckDuckGoMcpResult {
+	content: Array<{
+		type: string;
+		text: string;
+	}>;
 }
 
 export const WebSearchArgsSchema = z.object({
@@ -34,7 +28,7 @@ export interface WebSearchData {
 
 export const search = createEffect<WebSearchArgs, WebSearchData>({
 	name: "web.search",
-	description: "Search the web using local Brave Search MCP server.",
+	description: "Search the web using DuckDuckGo (Free, No API Key required).",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -44,60 +38,28 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 	},
 
 	handler: async (args: WebSearchArgs): Promise<EffectResponse<WebSearchData>> => {
-		return new Promise((resolve) => {
-			try {
-				const { query } = WebSearchArgsSchema.parse(args);
+		try {
+			const { query } = WebSearchArgsSchema.parse(args);
 
-				if (!BRAVE_API_KEY) {
-					return resolve(effectResult.fail("BRAVE_API_KEY is not configured."));
-				}
+			// mcpManager に注文を投げるだけ。
+			// 内部でプロセス管理、JSON-RPC、タイムアウト処理をすべてやってくれます。
+			const rawResult = await mcpManager.callTool("DUCKDUCKGO", "duckduckgo_search", {
+				query,
+			});
 
-				const child = spawn("node", [BRAVE_MCP_PATH], {
-					env: { ...process.env, BRAVE_API_KEY },
-				});
+			const mcpResult = rawResult as DuckDuckGoMcpResult;
 
-				let responseData = "";
+			// DuckDuckGo MCP は検索結果を一つのテキスト、または複数のテキストブロックで返します
+			const results: SearchResult[] = mcpResult.content.map((item) => ({
+				title: "Search Result",
+				url: "", // DuckDuckGo MCPは通常text内にURLが含まれるため、必要に応じて正規表現で抽出
+				description: item.text ?? "",
+			}));
 
-				const request = {
-					jsonrpc: "2.0",
-					id: 1,
-					method: "call_tool",
-					params: {
-						name: "brave_web_search",
-						arguments: { query },
-					},
-				};
-
-				child.stdin.write(`${JSON.stringify(request)}\n`);
-
-				child.stdout.on("data", (data: Buffer) => {
-					responseData += data.toString();
-					try {
-						// 型を適用してパース
-						const json = JSON.parse(responseData) as BraveMcpResponse;
-						child.kill();
-
-						const results: SearchResult[] = json.result.content.map((item) => ({
-							title: item.title ?? "No Title",
-							url: item.url ?? "",
-							description: item.description ?? "",
-						}));
-
-						resolve(effectResult.ok(`Search completed for "${query}".`, { results }));
-					} catch {
-						// 不完全なJSONの場合は次のデータ入力を待機
-					}
-				});
-
-				// タイムアウト処理（5秒応答がなければ強制終了）
-				setTimeout(() => {
-					child.kill();
-					resolve(effectResult.fail("Brave MCP timeout."));
-				}, 5000);
-			} catch (err) {
-				const errorMessage = err instanceof Error ? err.message : String(err);
-				resolve(effectResult.fail(`Web search error: ${errorMessage}`));
-			}
-		});
+			return effectResult.ok(`Search completed for "${query}".`, { results });
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Web search error: ${errorMessage}`);
+		}
 	},
 });

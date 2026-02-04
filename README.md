@@ -48,6 +48,11 @@ AIはこんな道具を使って、あなたの代わりに働きます。
 - **Node.js**
 - **Brave SearchのAPIキー**（ネット検索をさせる場合）
 
+---
+
+## 🚀 実際に動かす
+このプロジェクトをあなたのマシンで動かすための手順は、**[GETTING_STARTED.md](./GETTING_STARTED.md)** にまとめています。
+
 ## ライセンス
 - [MIT](./LICENSE)
 
