@@ -1,14 +1,19 @@
+import type { EffectDefinition, EffectResponse } from "../effects/types";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
 
+// 抽象化されたエフェクト型
+type AnyEffect = EffectDefinition<unknown, unknown>;
+
 export const orchestrator = {
-	// 最新のEffect実行結果を保持するバッファ
-	lastEffectResult: null as any,
+	// 最新のEffect execution結果を保持するバッファ
+	// 識別子付き共用体を尊重し、初期値は null
+	lastEffectResult: null as EffectResponse<unknown> | null,
 
 	/**
 	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
 	 */
-	async selectNextEffect(registry: Record<string, any>): Promise<string | null> {
+	async selectNextEffect(registry: Record<string, AnyEffect>): Promise<string | null> {
 		const stack = taskStack.getStack();
 		if (stack.length === 0) return "";
 
@@ -63,10 +68,11 @@ Respond with only the effect name.
 
 		if (!rawContent) {
 			// ここで記録する！
+			// 修正: success: false なので data ではなく error を指定
 			this.recordObservation({
 				success: false,
 				summary: "Decision failed: LLM did not return any effect name.",
-				data: { action: "Waiting for retry or check status." },
+				error: "LLM_RESPONSE_EMPTY",
 			});
 			return null;
 		}
@@ -80,7 +86,7 @@ Respond with only the effect name.
 			this.recordObservation({
 				success: false,
 				summary: `Decision failed: Selected effect "${rawContent.substring(0, 50)}" is not available.`,
-				data: { available: Object.keys(registry) },
+				error: `AVAILABLE_EFFECTS: ${Object.keys(registry).join(", ")}`,
 			});
 			return null;
 		}
@@ -91,16 +97,21 @@ Respond with only the effect name.
 	/**
 	 * 2. 選ばれたエフェクトを実行する（3ステップ構成）
 	 */
-	async dispatch(effect: any, effectName: string, task: Task): Promise<any> {
+	async dispatch(
+		effect: AnyEffect,
+		effectName: string,
+		task: Task,
+	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
 		const schemaForLlm = JSON.parse(JSON.stringify(effect.inputSchema));
 		let hasRawDataField = false;
 
-		Object.keys(schemaForLlm.properties || {}).forEach((key) => {
-			if (effect.inputSchema.properties[key].isRawData) {
+		const props = schemaForLlm.properties || {};
+		Object.keys(props).forEach((key) => {
+			// description やフラグから __DATA__ フィールドの有無を確認
+			if (props[key].isRawData || props[key].description?.includes("__DATA__")) {
 				hasRawDataField = true;
-				schemaForLlm.properties[key].description =
-					"!!! MANDATORY: Write ONLY the exact string '__DATA__' here. !!!";
+				props[key].description = "!!! MANDATORY: Write ONLY the exact string '__DATA__' here. !!!";
 			}
 		});
 
@@ -123,14 +134,18 @@ Generate JSON arguments. Use "__DATA__" where required.
 Respond with ONLY the JSON object.
 `.trim();
 
-		const { data: args, error } = await llm.completeAsJson(argPrompt);
-		if (error || !args) {
-			this.recordObservation({ success: false, summary: "JSON argument generation failed." });
+		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
+		if (jsonError || !args || typeof args !== "object") {
+			this.recordObservation({
+				success: false,
+				summary: "JSON argument generation failed.",
+				error: jsonError || "INVALID_JSON_STRUCTURE",
+			});
 			return;
 		}
 
 		// --- [STEP 3: Raw Data Retrieval] ---
-		const finalArgs: Record<string, any> = { ...args };
+		const finalArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
 
 		if (hasRawDataField) {
 			// ここで背景情報をしっかり渡す
@@ -158,13 +173,17 @@ For example, if this is a file write, provide the source code now.
 				this.recordObservation({
 					success: false,
 					summary: `Failed to retrieve the raw content for field marked as __DATA__.`,
+					error: "RAW_CONTENT_RETRIEVAL_FAILED",
 				});
 				return;
 			}
 
 			Object.keys(finalArgs).forEach((key) => {
 				// string型であることを確認しつつ、前後の空白を除去して判定
-				if (typeof finalArgs[key] === "string" && finalArgs[key].trim() === "__DATA__") {
+				if (
+					typeof finalArgs[key] === "string" &&
+					(finalArgs[key] as string).trim() === "__DATA__"
+				) {
 					finalArgs[key] = rawContent;
 				}
 			});
@@ -173,26 +192,27 @@ For example, if this is a file write, provide the source code now.
 		// --- [Execution] ---
 		try {
 			console.log(`[Exec] Running ${effectName}...`);
+			// handler(unknown) を呼び出し。内部の Zod がこの unknown をパースして守る
 			const result = await effect.handler(finalArgs);
-			this.recordObservation({
-				effectName,
-				summary: result.summary,
-				data: result.data,
-				success: result.success,
-			});
+			this.recordObservation(result);
 			return result;
-		} catch (e: any) {
+		} catch (e: unknown) {
 			// handlerが予期せぬエラーで落ちた場合もObservationとして記録
-			this.recordObservation({
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			const failResult: EffectResponse<never> = {
 				success: false,
-				summary: `Runtime error in ${effectName}: ${e.message}`,
-				effectName,
-			});
-			return;
+				summary: `Runtime error in ${effectName}`,
+				error: errorMessage,
+			};
+			this.recordObservation(failResult);
+			return failResult;
 		}
 	},
 
-	recordObservation(result: any) {
+	/**
+	 * 実行結果をバッファに記録
+	 */
+	recordObservation(result: EffectResponse<unknown>) {
 		this.lastEffectResult = result;
 	},
 };
