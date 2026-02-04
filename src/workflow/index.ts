@@ -1,14 +1,13 @@
 import "dotenv/config";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
-import { analyze } from "../effects/ai/analyze";
 import { check } from "../effects/task/check";
 import { plan } from "../effects/task/plan";
 import { split } from "../effects/task/split";
 import type { EffectDefinition } from "../effects/types";
 
 // 利用可能なエフェクトのカタログ
-const effects = [check, plan, split, analyze];
+const effects = [check, plan, split];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
 	effects.map((e) => [e.name, e as EffectDefinition<unknown, unknown>]),

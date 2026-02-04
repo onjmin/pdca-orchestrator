@@ -14,14 +14,14 @@ export const ComplainArgsSchema = z.object({
 export type ComplainArgs = z.infer<typeof ComplainArgsSchema>;
 
 /**
- * EFFECT: admin.complain
+ * EFFECT: master.complain
  * 管理者に「愚痴」をこぼす。
  * 開発に行き詰まった時や、タスクの不条理を感じた時のメンタルケア（ジョーク機能）。
  */
 export const complain = createEffect<ComplainArgs>({
-	name: "admin.complain",
+	name: "master.complain",
 	description:
-		"Vent your frustrations or complaints to the admin. Use this when the task is too difficult or the environment is annoying.",
+		"Vent your frustrations or complaints to the master. Use this when the task is too difficult or the environment is annoying.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -68,7 +68,7 @@ export const complain = createEffect<ComplainArgs>({
 
 			// 愚痴を言った後のすっきり感を演出
 			return effectResult.okVoid(
-				`The admin has heard your frustration. You feel slightly better now. Take a deep breath and return to the task.`,
+				`The master has heard your frustration. You feel slightly better now. Take a deep breath and return to the task.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
