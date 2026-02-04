@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
+import { mcpManager } from "../core/mcp-manager";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
@@ -73,6 +74,28 @@ const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.from
 );
 
 async function main() {
+	console.log("--- 小人が起きました ---");
+
+	// 0. MCP サーバーの初期化 (一括起動)
+	// index.ts 側で明示的に起動することで、ツールの初回実行時のラグを防ぎます
+	try {
+		console.log("[MCP] 道具箱を準備しています（初回は数秒かかります）...");
+
+		// .env に定義されている場合にのみ、バックグラウンドで起動を開始
+		if (process.env.DUCKDUCKGO_MCP_COMMAND) {
+			mcpManager.callTool("DUCKDUCKGO", "ping", {}).catch(() => {
+				/* 起動のためのダミー呼び出し */
+			});
+		}
+		if (process.env.GITHUB_MCP_COMMAND) {
+			mcpManager.callTool("GITHUB", "ping", {}).catch(() => {
+				/* 起動のためのダミー呼び出し */
+			});
+		}
+	} catch (err) {
+		console.warn("[MCP] 道具の準備中に警告が発生しました:", err);
+	}
+
 	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
 	const goalPath = resolve(process.cwd(), "GOAL");
 	let initialTask = {
@@ -85,7 +108,6 @@ async function main() {
 		const rawContent = await fs.readFile(goalPath, "utf-8");
 		const parts = rawContent.split("---").map((s) => s.trim());
 
-		// 3要素（タイトル、説明、完了条件）が揃っているか厳密にチェック
 		if (parts.length !== 3) {
 			throw new Error(
 				`⚠️ GOAL file format is invalid. Found ${parts.length} parts, but exactly 3 parts separated by '---' are required.`,
@@ -95,28 +117,46 @@ async function main() {
 		const [title, description, dod] = parts;
 		initialTask = { title, description, dod };
 	} catch (err) {
-		// ファイルがない、あるいはフォーマットエラーの場合
 		const msg = err instanceof Error ? err.message : String(err);
 		throw new Error(`[CRITICAL] Failed to initialize task: ${msg}`);
 	}
 
 	taskStack.push(initialTask);
 
-	// 2. 初手のエフェクトを選択 (LLMがスタックを見て "task.check" を選ぶ)
+	// 2. 初手のエフェクトを選択
 	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
 
-	while (!taskStack.isEmpty()) {
-		const currentTask = taskStack.currentTask;
-		if (!currentTask) break;
+	// --- メインループ ---
+	try {
+		while (!taskStack.isEmpty()) {
+			const currentTask = taskStack.currentTask;
+			if (!currentTask) break;
 
-		// 3. 選択されたエフェクトを原子的に実行
-		// (この内部で taskStack.push/pop やファイル操作が行われる)
-		await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
+			// 3. 選択されたエフェクトを実行
+			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
 
-		// 4. 実行後の「最新の状態」を見て、次の一手をLLMに再選択させる
-		// ここで task.plan に行くか、file.write に行くかをLLMが毎回決める
-		nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+			// 4. 次の一手をLLMに再選択させる
+			nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+		}
+	} finally {
+		// 5. 後片付け (正常終了・異常終了に関わらず実行)
+		console.log("--- 小人が道具を片付けて寝ます ---");
+		mcpManager.shutdown();
 	}
 }
 
-main().catch(console.error);
+// Ctrl+C 等のシグナル割り込みでも確実にシャットダウンする
+const handleExit = () => {
+	console.log("\n[SYSTEM] 強制終了を検知しました。後片付け中...");
+	mcpManager.shutdown();
+	process.exit();
+};
+
+process.on("SIGINT", handleExit);
+process.on("SIGTERM", handleExit);
+
+main().catch((err) => {
+	console.error(err);
+	mcpManager.shutdown();
+	process.exit(1);
+});
