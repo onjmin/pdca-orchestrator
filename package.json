@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx src/workflow/tests/web-messenger-test.ts"
+    "test": "tsx src/workflow/tests/task-report-test.ts"
   },
   "keywords": [],
   "author": "onjmin",

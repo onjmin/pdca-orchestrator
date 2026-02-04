@@ -6,10 +6,9 @@ import { check } from "../effects/task/check";
 import { plan } from "../effects/task/plan";
 import { split } from "../effects/task/split";
 import type { EffectDefinition } from "../effects/types";
-import { notify } from "../effects/web/notify";
 
 // 利用可能なエフェクトのカタログ
-const effects = [check, plan, split, notify, analyze];
+const effects = [check, plan, split, analyze];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
 	effects.map((e) => [e.name, e as EffectDefinition<unknown, unknown>]),
