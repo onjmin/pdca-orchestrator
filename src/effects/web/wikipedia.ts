@@ -1,103 +1,76 @@
-import { spawn } from "child_process";
 import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
-const BRAVE_MCP_PATH = process.env.BRAVE_MCP_PATH ?? "path/to/brave-search/dist/index.js";
-const BRAVE_API_KEY = process.env.BRAVE_API_KEY ?? "";
-
-// Brave MCP のレスポンス構造を定義
-interface BraveMcpResponse {
-	result: {
-		content: Array<{
-			title?: string;
-			url?: string;
-			description?: string;
-		}>;
-	};
-}
-
-export const WebSearchArgsSchema = z.object({
-	query: z.string().describe("The search query to look up on the internet."),
+export const WebWikipediaArgsSchema = z.object({
+	query: z
+		.string()
+		.describe(
+			"The topic or keyword to look up on Wikipedia (e.g., 'Category theory', 'Model Context Protocol').",
+		),
+	language: z.string().default("ja").describe("The language code (e.g., 'ja', 'en')."),
 });
 
-export type WebSearchArgs = z.infer<typeof WebSearchArgsSchema>;
+export type WebWikipediaArgs = z.infer<typeof WebWikipediaArgsSchema>;
 
-export interface SearchResult {
+export interface WebWikipediaData {
 	title: string;
-	url: string;
-	description: string;
+	extract: string; // 本文の要約/プレーンテキスト
+	content_url: string;
 }
 
-export interface WebSearchData {
-	results: SearchResult[];
-}
-
-export const search = createEffect<WebSearchArgs, WebSearchData>({
-	name: "web.search",
-	description: "Search the web using local Brave Search MCP server.",
+/**
+ * EFFECT: web.wikipedia
+ * WikipediaのAPIを使用して、特定のトピックに関する信頼性の高い情報を取得する。
+ * 学術的な概念や固有名詞の背景を調べるために使用。
+ */
+export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
+	name: "web.wikipedia",
+	description:
+		"Fetch a summarized explanation of a specific topic from Wikipedia. Ideal for academic or conceptual background research.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			query: { type: "string" },
+			language: { type: "string", default: "ja" },
 		},
 		required: ["query"],
 	},
 
-	handler: async (args: WebSearchArgs): Promise<EffectResponse<WebSearchData>> => {
-		return new Promise((resolve) => {
-			try {
-				const { query } = WebSearchArgsSchema.parse(args);
+	handler: async (args: WebWikipediaArgs): Promise<EffectResponse<WebWikipediaData>> => {
+		try {
+			const { query, language } = WebWikipediaArgsSchema.parse(args);
 
-				if (!BRAVE_API_KEY) {
-					return resolve(effectResult.fail("BRAVE_API_KEY is not configured."));
-				}
+			// Wikipedia REST API (Summary endpoint)
+			// search_depth を考慮せずとも、最も関連性の高い1件の要約を直接取得できる
+			const endpoint = `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
 
-				const child = spawn("node", [BRAVE_MCP_PATH], {
-					env: { ...process.env, BRAVE_API_KEY },
-				});
+			const response = await fetch(endpoint, {
+				headers: {
+					"User-Agent": "bfa-agent/1.0 (https://github.com/your-repo-name; your-email@example.com)",
+				},
+			});
 
-				let responseData = "";
-
-				const request = {
-					jsonrpc: "2.0",
-					id: 1,
-					method: "call_tool",
-					params: {
-						name: "brave_web_search",
-						arguments: { query },
-					},
-				};
-
-				child.stdin.write(`${JSON.stringify(request)}\n`);
-
-				child.stdout.on("data", (data: Buffer) => {
-					responseData += data.toString();
-					try {
-						// 型を適用してパース
-						const json = JSON.parse(responseData) as BraveMcpResponse;
-						child.kill();
-
-						const results: SearchResult[] = json.result.content.map((item) => ({
-							title: item.title ?? "No Title",
-							url: item.url ?? "",
-							description: item.description ?? "",
-						}));
-
-						resolve(effectResult.ok(`Search completed for "${query}".`, { results }));
-					} catch {
-						// 不完全なJSONの場合は次のデータ入力を待機
-					}
-				});
-
-				// タイムアウト処理（5秒応答がなければ強制終了）
-				setTimeout(() => {
-					child.kill();
-					resolve(effectResult.fail("Brave MCP timeout."));
-				}, 5000);
-			} catch (err) {
-				const errorMessage = err instanceof Error ? err.message : String(err);
-				resolve(effectResult.fail(`Web search error: ${errorMessage}`));
+			if (response.status === 404) {
+				return effectResult.fail(`Topic "${query}" not found on Wikipedia (${language}).`);
 			}
-		});
+
+			if (!response.ok) {
+				return effectResult.fail(`Wikipedia API error: ${response.status}`);
+			}
+
+			const data = await response.json();
+
+			// 型に合わせた整形
+			const result: WebWikipediaData = {
+				title: data.title,
+				extract: data.extract, // これがプレーンテキストの要約
+				content_url: data.content_urls.desktop.page,
+			};
+
+			return effectResult.ok(`Successfully retrieved information about "${result.title}".`, result);
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Wikipedia lookup failed: ${errorMessage}`);
+		}
 	},
 });
