@@ -1,14 +1,5 @@
 import { z } from "zod";
-import { mcpManager } from "../../core/mcp-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
-
-// DuckDuckGo MCP のレスポンス構造（ツール実行結果）
-interface DuckDuckGoMcpResult {
-	content: Array<{
-		type: string;
-		text: string;
-	}>;
-}
 
 export const WebSearchArgsSchema = z.object({
 	query: z.string().describe("The search query to look up on the internet."),
@@ -17,22 +8,43 @@ export const WebSearchArgsSchema = z.object({
 export type WebSearchArgs = z.infer<typeof WebSearchArgsSchema>;
 
 export interface SearchResult {
-	title: string;
 	url: string;
-	description: string;
+	content: string;
+	title: string;
 }
 
 export interface WebSearchData {
 	results: SearchResult[];
 }
 
+// Tavily APIのレスポンス構造を定義
+interface TavilyRawResult {
+	url: string;
+	content: string;
+	title: string;
+	score: number;
+}
+
+interface TavilyResponse {
+	results: TavilyRawResult[];
+}
+
+/**
+ * EFFECT: web.search
+ * Tavily API を直接使用して検索を実行します。
+ * 高コストなため、外部知識が不可欠な場合のみ使用するよう小人に制限をかけます。
+ */
 export const search = createEffect<WebSearchArgs, WebSearchData>({
 	name: "web.search",
-	description: "Search the web using DuckDuckGo (Free, No API Key required).",
+	description:
+		"Search the web for external knowledge. This is HIGH COST, so think twice and use only when necessary (e.g., latest API docs).",
 	inputSchema: {
 		type: "object",
 		properties: {
-			query: { type: "string" },
+			query: {
+				type: "string",
+				description: "The specific search query.",
+			},
 		},
 		required: ["query"],
 	},
@@ -40,26 +52,46 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 	handler: async (args: WebSearchArgs): Promise<EffectResponse<WebSearchData>> => {
 		try {
 			const { query } = WebSearchArgsSchema.parse(args);
+			const apiKey = process.env.TAVILY_API_KEY;
 
-			// mcpManager に注文を投げるだけ。
-			// 内部でプロセス管理、JSON-RPC、タイムアウト処理をすべてやってくれます。
-			const rawResult = await mcpManager.callTool("DUCKDUCKGO", "duckduckgo_search", {
-				query,
+			if (!apiKey) {
+				return effectResult.fail("TAVILY_API_KEY is not set in environment variables.");
+			}
+
+			console.log(`[Tavily] High-cost search for: "${query}"...`);
+
+			const response = await fetch("https://api.tavily.com/search", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					api_key: apiKey,
+					query: query,
+					search_depth: "basic",
+					include_answer: false,
+				}),
 			});
 
-			const mcpResult = rawResult as DuckDuckGoMcpResult;
+			if (!response.ok) {
+				throw new Error(`Tavily API error: ${response.statusText}`);
+			}
 
-			// DuckDuckGo MCP は検索結果を一つのテキスト、または複数のテキストブロックで返します
-			const results: SearchResult[] = mcpResult.content.map((item) => ({
-				title: "Search Result",
-				url: "", // DuckDuckGo MCPは通常text内にURLが含まれるため、必要に応じて正規表現で抽出
-				description: item.text ?? "",
+			// 型安全なパース
+			const data = (await response.json()) as TavilyResponse;
+
+			if (!data.results || !Array.isArray(data.results)) {
+				return effectResult.ok("Search completed, but no results found.", { results: [] });
+			}
+
+			const results: SearchResult[] = data.results.map((r) => ({
+				url: r.url,
+				content: r.content,
+				title: r.title,
 			}));
 
-			return effectResult.ok(`Search completed for "${query}".`, { results });
-		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Web search error: ${errorMessage}`);
+			return effectResult.ok(`Search completed. Used high-cost API for "${query}".`, { results });
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Web search failed: ${msg}`);
 		}
 	},
 });

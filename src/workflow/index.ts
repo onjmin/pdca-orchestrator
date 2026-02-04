@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
-import { mcpManager } from "../core/mcp-manager";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
@@ -77,26 +76,6 @@ const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.from
 
 async function main() {
 	console.log("--- 小人が起きました ---");
-
-	// 0. MCP サーバーの初期化 (一括起動)
-	// index.ts 側で明示的に起動することで、ツールの初回実行時のラグを防ぎます
-	try {
-		console.log("[MCP] 道具箱を準備しています（初回は数秒かかります）...");
-
-		// .env に定義されている場合にのみ、バックグラウンドで起動を開始
-		if (process.env.DUCKDUCKGO_MCP_COMMAND) {
-			mcpManager.callTool("DUCKDUCKGO", "ping", {}).catch(() => {
-				/* 起動のためのダミー呼び出し */
-			});
-		}
-		if (process.env.GITHUB_MCP_COMMAND) {
-			mcpManager.callTool("GITHUB", "ping", {}).catch(() => {
-				/* 起動のためのダミー呼び出し */
-			});
-		}
-	} catch (err) {
-		console.warn("[MCP] 道具の準備中に警告が発生しました:", err);
-	}
 
 	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
 	const goalPath = resolve(process.cwd(), "GOAL");

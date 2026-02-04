@@ -1,49 +1,50 @@
 import "dotenv/config";
-import { mcpManager } from "../../core/mcp-manager";
 import { search } from "../../effects/web/search";
 
-async function testSearch() {
-	console.log("--- DuckDuckGo Search Effect Test Start ---");
-	console.log("MCP Command:", process.env.DUCKDUCKGO_MCP_COMMAND);
+async function testWebSearch() {
+	console.log("--- Tavily Search Effect Test Start ---");
 
-	try {
-		// テストケース: 「Model Context Protocol」について検索
-		const query = "Model Context Protocol";
-		console.log(`\n[Test] Searching for: "${query}"...`);
-		console.log("(初回は npx の起動待ちで 10秒ほどかかる場合があります)");
+	// 1. APIキーの存在確認
+	if (!process.env.TAVILY_API_KEY) {
+		console.error("❌ Error: TAVILY_API_KEY is not set in .env file.");
+		process.exit(1);
+	}
 
-		const res = await search.handler({
-			query: query,
-		});
+	// 2. 検索の実行（小人がよくやりそうな具体的なクエリ）
+	const query = "Latest stable version of Hono framework and its features";
+	console.log(`[Test] Searching for: "${query}"...`);
 
-		if (res.success) {
-			console.log("✅ Success!");
-			console.log(`Summary: ${res.summary}`);
+	const res = await search.handler({
+		query: query,
+	});
 
-			// 結果の表示
-			if (res.data.results.length > 0) {
-				console.log("\n--- Search Results ---");
-				for (const item of res.data.results.slice(0, 3)) {
-					// 最初の3件
-					console.log(`- Content: ${item.description.substring(0, 150)}...`);
-					console.log("---");
-				}
-			} else {
-				console.log("⚠️ No results found.");
-			}
+	// 3. 結果の判定
+	if (res.success) {
+		console.log(`✅ Success: ${res.summary}`);
+
+		// 取得したデータの構造を確認
+		const data = res.data;
+		if (data && data.results.length > 0) {
+			console.log(`[Test] Found ${data.results.length} results.`);
+
+			// 最初の1件だけ中身を表示
+			const topResult = data.results[0];
+			console.log("--- Top Result ---");
+			console.log(`Title:   ${topResult.title}`);
+			console.log(`URL:     ${topResult.url}`);
+			console.log(`Content snippet: ${topResult.content.substring(0, 150)}...`);
+			console.log("------------------");
 		} else {
-			console.error("❌ Failed!");
-			console.error("Error Message:", res.error);
+			console.warn("⚠️ Warning: Search succeeded but returned 0 results.");
 		}
-	} catch (err) {
-		console.error("❌ Critical Error during test:", err);
-	} finally {
-		// 重要: 常駐プロセスを終了させないとスクリプトが終わりません
-		console.log("\n[Cleanup] Shutting down MCP server...");
-		mcpManager.shutdown();
+	} else {
+		console.error(`❌ Search Failed: ${res.error}`);
 	}
 
 	console.log("--- Test Finished ---");
 }
 
-testSearch().catch(console.error);
+testWebSearch().catch((err) => {
+	console.error("Unexpected test error:", err);
+	process.exit(1);
+});

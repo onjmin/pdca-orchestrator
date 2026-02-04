@@ -24,43 +24,17 @@
    pnpm install
    ```
 
-### 外部ツールの準備（MCPサーバー）
-小人が「検索」や「GitHub操作」をするためには、外部のMCPサーバープログラムを利用します。
-これらは **自分でサーバーを構築する必要はなく**、起動時にシステムが自動的に呼び出します。
-
-以下のコマンドがあなたの環境で実行できることだけ確認しておいてください。
-
-1. **GitHub操作**: `npx -y @modelcontextprotocol/server-github`
-2. **Web検索**: `npx -y @modelcontextprotocol/server-duckduckgo`
-
-※ 初回起動時に `npx` が必要なパッケージを自動でダウンロードします。
-
 ---
 
 ## 2. 環境設定 (``.env``)
 
-プロジェクトルートに ``.env`` ファイルを作成し、以下の情報を記入してください。
+プロジェクトの動作には設定ファイルが必要です。まず、テンプレートをコピーして設定ファイルを作成してください。
 
-```env
-# 小人が作業して良いディレクトリ（絶対パス推奨）
-BASE_DIR=/home/user/workspace/my-project
-
-# LLM 接続設定 (LM Studio 等)
-LLM_URL=http://localhost:1234/v1/chat/completions
-LLM_KEY=not-needed
-LLM_MODEL=local-model
-
-# 通知設定 (進捗や相談が届きます)
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-
-# GitHub 連携 (PR作成等)
-GITHUB_TOKEN=ghp_your_token_here
-GITHUB_TARGET_REPO=owner/repo
-
-# MCPサーバーの起動コマンド
-GITHUB_MCP_COMMAND=npx -y @modelcontextprotocol/server-github
-DUCKDUCKGO_MCP_COMMAND=npx -y @modelcontextprotocol/server-duckduckgo
+```bash
+cp .env.example .env
 ```
+
+作成した ``.env`` を開き、埋めてください。
 
 ---
 
@@ -69,9 +43,9 @@ DUCKDUCKGO_MCP_COMMAND=npx -y @modelcontextprotocol/server-duckduckgo
 小人を本格的に動かす前に、各パーツが正しく接続されているか確認しましょう。
 以下のコマンドで、LLMや外部ツールへの接続テストを一括実行できます。
 
-``bash
+```bash
 pnpm test:all
-``
+```
 
 個別に確認したい場合は、以下のコマンドを利用してください：
 
