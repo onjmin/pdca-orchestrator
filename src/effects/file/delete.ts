@@ -18,7 +18,7 @@ export type FileDeleteArgs = z.infer<typeof FileDeleteArgsSchema>;
  * ファイルまたはディレクトリを安全に削除する。
  * 戻り値データは不要なため EffectResponse<void> を約束する。
  */
-export const remove = createEffect<FileDeleteArgs, void>({
+export const del = createEffect<FileDeleteArgs, void>({
 	name: "file.delete",
 	description:
 		"Delete a file or directory safely within the project. Use recursive:true for non-empty directories.",
