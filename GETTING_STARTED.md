@@ -46,8 +46,9 @@
 BASE_DIR=/home/user/workspace/my-project
 
 # LLM 接続設定 (LM Studio 等)
-LM_STUDIO_API_URL=http://localhost:1234/v1
-LM_STUDIO_API_KEY=not-needed
+LLM_URL=http://localhost:1234/v1/chat/completions
+LLM_KEY=not-needed
+LLM_MODEL=local-model
 
 # 通知設定 (進捗や相談が届きます)
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...

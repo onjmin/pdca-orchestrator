@@ -1,45 +1,42 @@
-const LM_URL = process.env.LM_STUDIO_API_URL ?? "http://localhost:1234/v1/chat/completions";
-const LM_KEY = process.env.LM_STUDIO_API_KEY;
+const LLM_URL = process.env.LLM_API_URL ?? "http://localhost:1234/v1/chat/completions";
+const LLM_KEY = process.env.LLM_API_KEY ?? "not-needed";
+const LLM_MODEL = process.env.LLM_MODEL ?? "local-model"; // Ollamaなどはモデル名指定が必須
 
 export interface LLMOutput {
-	content: string; // 生のテキスト（思考や回答）
-	parsed?: unknown; // JSONとしてパースされたデータ（成功時のみ）
+	content: string;
+	parsed?: unknown;
 }
 
 export const llm = {
-	/**
-	 * テキストとして回答を得る（主にEffectの選択用）
-	 */
 	async complete(prompt: string): Promise<string> {
 		const res = await this.ask(prompt);
 		return res.content.trim();
 	},
 
-	/**
-	 * JSONとして回答を得る（主に引数生成用）
-	 */
 	async completeAsJson(prompt: string): Promise<{ data: object | null; error: string | null }> {
 		const res = await this.ask(prompt);
 		return repairAndParseJSON(res.content);
 	},
 
-	/**
-	 * 共通のfetch処理
-	 */
 	async ask(prompt: string): Promise<LLMOutput> {
-		const response = await fetch(LM_URL, {
+		const response = await fetch(LLM_URL, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				...(LM_KEY ? { Authorization: `Bearer ${LM_KEY}` } : {}),
+				// キーが空でも規格通り Bearer を送って問題ないサーバーが多いです
+				Authorization: `Bearer ${LLM_KEY}`,
 			},
 			body: JSON.stringify({
+				model: LLM_MODEL, // 互換性のため追加
 				messages: [{ role: "user", content: prompt }],
 				temperature: 0,
 			}),
 		});
 
-		if (!response.ok) throw new Error(`LLM API Error: ${response.statusText}`);
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(`LLM API Error (${response.status}): ${errorText}`);
+		}
 
 		const json = await response.json();
 		const content = json.choices[0].message.content || "";
