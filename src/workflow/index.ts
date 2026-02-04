@@ -5,18 +5,18 @@ import { mcpManager } from "../core/mcp-manager";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
-import { del } from "../effects/file/delete";
 import { grep } from "../effects/file/grep";
 import { list } from "../effects/file/list";
 import { move } from "../effects/file/move";
 import { patch } from "../effects/file/patch";
-import { pwd } from "../effects/file/pwd";
 import { read } from "../effects/file/read";
+import { remove } from "../effects/file/remove";
 import { search as fileSearch } from "../effects/file/search";
 import { tree } from "../effects/file/tree";
 import { write } from "../effects/file/write";
-import { setupBranch } from "../effects/github/setup_branch";
-import { submitWork } from "../effects/github/submit_work";
+import { checkout } from "../effects/git/checkout";
+import { clone } from "../effects/git/clone";
+import { createPullRequest } from "../effects/github/create-pull-request";
 import { complain } from "../effects/master/complain";
 import { requestTool } from "../effects/master/request_tool";
 import { exec } from "../effects/shell/exec";
@@ -32,41 +32,43 @@ import { wikipedia } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const effects = [
-	// 1. 最優先：現在の状況を「認知」するためのツール（まずはここを見ろ）
-	pwd,
+	// 1. 認知：現在の状況・場所を知る（まずここを見ろ）
 	list,
 	tree,
-	read, // 自分の立ち位置と中身を知る
-	check, // タスクの現状を確認する
+	read,
+	check,
 
-	// 2. 次点：どう動くかを「計画・思考」するためのツール
+	// 2. 準備：作業の土台を整える（土俵に上がる）
+	clone, // リポジトリを持ってくる
+	checkout, // 適切なブランチに切り替える
+
+	// 3. 思考：どう動くかを計画する
 	plan,
-	split, // 計画を立てる・分ける
-	theorize, // 理論的に深く考える
+	split,
+	theorize,
 
-	// 3. 実行：実際に「作用」を及ぼすツール（メインの手足）
+	// 4. 実行：実際に手を動かす（メインの手足）
 	write,
-	patch, // 書く・直す
-	exec, // コマンド実行（重い武器）
+	patch,
+	remove, // ファイル操作はここにまとめる
+	move,
+	exec,
 	grep,
-	fileSearch, // 広範囲の探索
-	wait, // 同期のための待機
+	fileSearch,
+	wait,
 
-	// 4. 外部：知識を「補完」するためのツール
+	// 5. 補完：外部知識を取り入れる
 	webSearch,
 	wikipedia,
-	fetchContent, // ググる・調べる
+	fetchContent,
 
-	// 5. 報告：成果を「確定」させるツール
-	report, // 仕事の完了報告
-	setupBranch,
-	submitWork, // リモートへの反映
+	// 6. 報告：成果を提出し、完了させる
+	createPullRequest, // 最も重要な「仕事の出口」
+	report, // 内部的な完了報告
 
-	// 6. メタ：例外的な「レスキュー」ツール（最後の手）
+	// 7. レスキュー：人間への相談
 	complain,
-	requestTool, // 人間への泣きつき・機能要望
-	del,
-	move, // 破壊的・整理操作
+	requestTool,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(

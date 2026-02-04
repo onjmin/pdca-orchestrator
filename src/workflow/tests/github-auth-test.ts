@@ -1,50 +1,52 @@
 import "dotenv/config";
-import { mcpManager } from "../../core/mcp-manager";
+import { Octokit } from "@octokit/rest";
 
-async function testGithubAuth() {
-	console.log("--- GitHub MCP Auth Test Start ---");
+async function testOctokitAuth() {
+	console.log("--- GitHub Octokit Auth Test ---");
 
-	const repo = process.env.GITHUB_TARGET_REPO;
-	const hasToken = !!process.env.GITHUB_TOKEN;
+	const token = process.env.GITHUB_TOKEN;
+	const targetRepo = process.env.GITHUB_TARGET_REPO; // "owner/repo"
 
-	console.log(`Target Repo: ${repo}`);
-	console.log(`Token Configured: ${hasToken}`);
-
-	if (!hasToken || !repo) {
-		console.error("❌ GITHUB_TOKEN or GITHUB_TARGET_REPO is missing in .env");
+	if (!token || !targetRepo) {
+		console.error("❌ GITHUB_TOKEN or GITHUB_TARGET_REPO is missing.");
 		return;
 	}
 
+	const octokit = new Octokit({ auth: token });
+	const [owner, repo] = targetRepo.split("/");
+
 	try {
-		console.log("\n[Test] Fetching repository info via GitHub MCP...");
-		console.log("(初回は npx の起動待ちが発生します)");
+		console.log(`[Test] Fetching repository: ${owner}/${repo}...`);
 
-		const [owner, repoName] = repo.split("/");
-
-		// ブランチ作成の代わりに、リポジトリ情報を取得するだけのツールを実行
-		// これにより、Tokenの有効性と権限が確認できます
-		const result = await mcpManager.callTool("GITHUB", "get_repository", {
+		const { data } = await octokit.repos.get({
 			owner,
-			repo: repoName,
+			repo,
 		});
 
 		console.log("✅ Connection Success!");
-		console.log("Response Data:", JSON.stringify(result, null, 2));
-	} catch (err) {
-		console.error("❌ GitHub Auth Failed!");
-		const msg = err instanceof Error ? err.message : String(err);
-		console.error(`Error: ${msg}`);
+		console.log(`Repository ID: ${data.id}`);
+		console.log(`Default Branch: ${data.default_branch}`);
+		console.log(`Permissions: ${JSON.stringify(data.permissions)}`);
+	} catch (err: unknown) {
+		console.error("❌ GitHub Octokit Error!");
 
-		console.log("\nPossible causes:");
-		console.log("1. GITHUB_TOKEN is invalid or expired.");
-		console.log("2. GITHUB_TOKEN does not have 'repo' scope.");
-		console.log("3. GITHUB_TARGET_REPO format is wrong (should be 'owner/repo').");
-	} finally {
-		console.log("\n[Cleanup] Shutting down MCP server...");
-		mcpManager.shutdown();
+		if (err && typeof err === "object" && "status" in err) {
+			// Octokitのエラーオブジェクトから情報を抽出
+			const octoErr = err as { status: number; message: string; response?: { data: unknown } };
+			console.error(`Status: ${octoErr.status}`);
+			console.error(`Message: ${octoErr.message}`);
+
+			if (octoErr.status === 401) {
+				console.error("💡 Hint: GITHUB_TOKEN が無効か、有効期限が切れている可能性があります。");
+			} else if (octoErr.status === 404) {
+				console.error(
+					"💡 Hint: リポジトリが見つからないか、TOKEN にリポジトリへのアクセス権限（Repo scope）がありません。",
+				);
+			}
+		} else {
+			console.error(`Unknown Error: ${String(err)}`);
+		}
 	}
-
-	console.log("--- Test Finished ---");
 }
 
-testGithubAuth().catch(console.error);
+testOctokitAuth();
