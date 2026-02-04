@@ -77,9 +77,9 @@ pnpm test:all
 
 * **LLM接続**: ``pnpm test:llm`` (API応答とJSONパースの確認)
 * **シェル実行**: ``pnpm test:shell`` (コマンド実行権限の確認)
-* **Web検索**: ``pnpm test:search`` (DuckDuckGo MCPの起動確認)
+* **Web検索**: ``pnpm test:duckduckgo`` (DuckDuckGo MCPの起動確認)
 * **GitHub連携**: ``pnpm test:github`` (Tokenとリポジトリ権限の確認)
-* **ブラウザ/Wiki**: ``pnpm test:fetch`` / ``pnpm test:wiki`` (直接のWeb取得確認)
+* **ブラウザ/Wiki**: ``pnpm test:fetch`` / ``pnpm test:wikipedia`` (直接のWeb取得確認)
 
 ---
 
