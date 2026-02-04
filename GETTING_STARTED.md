@@ -64,7 +64,26 @@ DUCKDUCKGO_MCP_COMMAND=npx -y @modelcontextprotocol/server-duckduckgo
 
 ---
 
-## 3. 小人に仕事を頼む (``GOAL.md``)
+## 3. 疎通確認 (Health Check)
+
+小人を本格的に動かす前に、各パーツが正しく接続されているか確認しましょう。
+以下のコマンドで、LLMや外部ツールへの接続テストを一括実行できます。
+
+``bash
+pnpm test:all
+``
+
+個別に確認したい場合は、以下のコマンドを利用してください：
+
+* **LLM接続**: ``pnpm test:llm`` (API応答とJSONパースの確認)
+* **シェル実行**: ``pnpm test:shell`` (コマンド実行権限の確認)
+* **Web検索**: ``pnpm test:search`` (DuckDuckGo MCPの起動確認)
+* **GitHub連携**: ``pnpm test:github`` (Tokenとリポジトリ権限の確認)
+* **ブラウザ/Wiki**: ``pnpm test:fetch`` / ``pnpm test:wiki`` (直接のWeb取得確認)
+
+---
+
+## 4. 小人に仕事を頼む (``GOAL.md``)
 
 小人はデスク（プロジェクトルート）に置かれた ``GOAL.md`` を見て、その日の仕事を理解します。
 リポジトリにある **``GOAL.md`` を直接書き換えて**、以下の3つのセクションを記入してください。
@@ -91,7 +110,7 @@ srcディレクトリにhello.tsを作成してください。
 
 ---
 
-## 4. 実行
+## 5. 実行
 
 準備ができたら、小人を呼び出しましょう。
 
