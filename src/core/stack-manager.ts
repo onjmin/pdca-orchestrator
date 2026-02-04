@@ -3,7 +3,6 @@ export interface Task {
 	title: string;
 	description: string;
 	dod: string;
-	// インメモリで保持する「計画」の跡地
 	strategy?: string;
 	reasoning?: string;
 }
@@ -11,6 +10,8 @@ export interface Task {
 // 実行中に状態を保持するシングルトン
 class StackManager {
 	private stack: Task[] = [];
+	// 完了（pop）したタスクの累計カウント
+	private _totalPoppedCount = 0;
 
 	push(tasks: Task | Task[]) {
 		if (Array.isArray(tasks)) {
@@ -21,7 +22,38 @@ class StackManager {
 	}
 
 	pop(): Task | undefined {
-		return this.stack.pop();
+		const task = this.stack.pop();
+		if (task) {
+			this._totalPoppedCount++; // タスクを消化した実績を記録
+		}
+		return task;
+	}
+
+	/**
+	 * 計算論的な進捗率 (%) の算出
+	 * 式: 完了数 / (完了数 + 残りの深さ)
+	 */
+	get progress(): number {
+		const currentDepth = this.stack.length;
+		const total = this._totalPoppedCount + currentDepth;
+
+		if (total === 0) return 0;
+
+		// 全てのタスクが pop され、スタックが空なら 100%
+		if (currentDepth === 0 && this._totalPoppedCount > 0) return 100;
+
+		return Math.round((this._totalPoppedCount / total) * 100);
+	}
+
+	/**
+	 * 外部公開用のプロパティ
+	 */
+	get totalPoppedCount(): number {
+		return this._totalPoppedCount;
+	}
+
+	get length(): number {
+		return this.stack.length;
 	}
 
 	getStack(): Task[] {
