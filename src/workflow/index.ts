@@ -11,12 +11,7 @@ import { notify } from "../effects/web/notify";
 
 // 利用可能なエフェクトのカタログ
 const registry: Record<string, any> = {
-	"task.check": check,
-	"task.plan": plan,
-	"task.split": split,
-	"web.notify": notify,
-	"ai.analyze": analyze,
-	// "file.write": write, // 追加すれば勝手にLLMが選択肢に含める
+	...[check, plan, split, notify, analyze].map((v) => ({ [v.name]: v })),
 };
 
 async function main() {

@@ -1,23 +1,21 @@
 import { z } from "zod";
-import { type EffectDefinition, effectResult } from "../types";
+import { createEffect, type EffectResponse, effectResult } from "../types";
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL ?? "";
 
-// 入力バリデーション用の Zod スキーマ
 export const NotifyArgsSchema = z.object({
 	status: z.enum(["info", "success", "warning", "error"]),
 	message: z.string().min(1),
 });
 
-// Zod から型を抽出
 export type NotifyProgressArgs = z.infer<typeof NotifyArgsSchema>;
 
 /**
  * EFFECT: web.notify
- * マクロ: ステータスに応じたアイコンを付与し、Discord へ通知する
+ * Discordへの通知。戻り値データは不要なため、EffectResponse<void> を指定。
  */
-export const notify: EffectDefinition<NotifyProgressArgs> = {
-	name: "notify",
+export const notify = createEffect<NotifyProgressArgs>({
+	name: "web.notify",
 	description: "Post a structured status update or task report to Discord.",
 	inputSchema: {
 		type: "object",
@@ -34,14 +32,15 @@ export const notify: EffectDefinition<NotifyProgressArgs> = {
 		},
 		required: ["status", "message"],
 	},
-	// 型安全なハンドラ
-	handler: async (args) => {
+
+	// 戻り値型を明示。デフォルト any の余地を消す
+	handler: async (args: NotifyProgressArgs): Promise<EffectResponse<void>> => {
 		try {
-			// バリデーションの実行
 			const { status, message } = NotifyArgsSchema.parse(args);
 
 			if (!DISCORD_WEBHOOK_URL) {
-				throw new Error("DISCORD_WEBHOOK_URL is not configured.");
+				// fail は never を返すため、EffectResponse<void> に適合する
+				return effectResult.fail("DISCORD_WEBHOOK_URL is not configured. Notification skipped.");
 			}
 
 			const icons: Record<string, string> = {
@@ -62,13 +61,14 @@ export const notify: EffectDefinition<NotifyProgressArgs> = {
 			});
 
 			if (!res.ok) {
-				throw new Error(`Discord API error: ${res.status}`);
+				return effectResult.fail(`Discord API error: ${res.status} ${res.statusText}`);
 			}
 
-			return effectResult.ok(`Notification sent. status: ${status}`);
+			// 成功時: okVoid で data: undefined を確定させる
+			return effectResult.okVoid(`Notification sent. status: ${status}`);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(errorMessage);
+			return effectResult.fail(`Notify error: ${errorMessage}`);
 		}
 	},
-};
+});

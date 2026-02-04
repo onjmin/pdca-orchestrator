@@ -1,27 +1,36 @@
 import { z } from "zod";
 import { llm } from "../../core/llm-client";
-import type { EffectDefinition } from "../types";
+import { createEffect, type EffectResponse, effectResult } from "../types";
 
-// Zodによる引数の定義
 export const AnalyzeArgsSchema = z.object({
-	// 解析のための具体的な指示
 	instruction: z
 		.string()
 		.describe("Specific instruction for analysis (e.g., 'Find bugs', 'Summarize')."),
-	// JSON破壊を防ぐためのプレースホルダー
 	raw_content_placeholder: z
 		.string()
 		.describe(
-			"MANDATORY: Write ONLY the exact string '__DATA__' here. The actual content will be requested separately.",
+			"MANDATORY: Write ONLY the exact string '__DATA__' here. The actual content will be injected by the orchestrator.",
 		),
 });
 
-export const analyze: EffectDefinition<z.infer<typeof AnalyzeArgsSchema>> = {
-	name: "ai.analyze",
-	// LLMがこのツールを選ぶための説明
-	description: "Analyze the provided text or code using LLM and return the result.",
+export type AnalyzeArgs = z.infer<typeof AnalyzeArgsSchema>;
 
-	// ZodからJSON Schema的に組み立て（もし自動変換ユーティリティがなければ直接記述）
+/**
+ * 解析結果のデータ構造
+ */
+export interface AnalyzeData {
+	analysis: string;
+}
+
+/**
+ * EFFECT: ai.analyze
+ * 外部LLMを使用して特定のコンテンツを詳細に解析する。
+ * 成功時には必ず AnalyzeData (analysis) を返すことを型で縛る。
+ */
+export const analyze = createEffect<AnalyzeArgs, AnalyzeData>({
+	name: "ai.analyze",
+	description:
+		"Analyze the provided text or code using a specialized LLM prompt and return the insight.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -37,33 +46,28 @@ export const analyze: EffectDefinition<z.infer<typeof AnalyzeArgsSchema>> = {
 		required: ["instruction", "raw_content_placeholder"],
 	},
 
-	/**
-	 * ハンドラー内部で LLM を再利用して解析を実行する
-	 */
-	handler: async (args) => {
+	handler: async (args: AnalyzeArgs): Promise<EffectResponse<AnalyzeData>> => {
 		try {
-			// オーケストレーターによって '__DATA__' が実データに置換された状態で届く
+			// 1. バリデーション
+			const { instruction, raw_content_placeholder } = AnalyzeArgsSchema.parse(args);
+
+			// 2. LLM呼び出し
 			const result = await llm.complete(
-				`Instruction: ${args.instruction}\n\nContent to analyze:\n${args.raw_content_placeholder}`,
+				`Instruction: ${instruction}\n\nContent to analyze:\n${raw_content_placeholder}`,
 			);
 
 			if (!result) {
-				return {
-					success: false,
-					summary: "Analysis failed: LLM returned no response.",
-				};
+				// fail は never を返すため、EffectResponse<AnalyzeData> に自動適合
+				return effectResult.fail("Analysis failed: LLM returned no response.");
 			}
 
-			return {
-				success: true,
-				summary: "Analysis completed successfully.",
-				data: { analysis: result },
-			};
-		} catch (e: any) {
-			return {
-				success: false,
-				summary: `Analysis error: ${e.message}`,
-			};
+			// 3. 成功時: AnalyzeData の構造を強制
+			return effectResult.ok("Analysis completed successfully.", {
+				analysis: result,
+			});
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Analysis error: ${errorMessage}`);
 		}
 	},
-};
+});

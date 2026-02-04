@@ -1,20 +1,20 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
-import { type EffectDefinition, effectResult } from "../types";
+import { createEffect, type EffectResponse, effectResult } from "../types";
 
-/**
- * LLMから受け取る引数の定義
- */
 export const PlanArgsSchema = z.object({
-	strategy: z.string(), // LLMが考案した解決策や手順
-	reasoning: z.string(), // なぜその戦略を選んだのかという根拠
+	strategy: z.string().describe("The step-by-step strategy to achieve the current task's DoD."),
+	reasoning: z.string().describe("Logical reasoning for why this strategy is effective."),
 });
+
+export type PlanArgs = z.infer<typeof PlanArgsSchema>;
 
 /**
  * EFFECT: task.plan
- * 現在のタスクに対する解決戦略を策定し、タスクの記述を更新（補足）する
+ * 第2引数 R を省略（デフォルト void）にすることで、
+ * 成功時に余計なデータ（data）を返すことを型レベルで禁止する。
  */
-export const plan: EffectDefinition<z.infer<typeof PlanArgsSchema>> = {
+export const plan = createEffect<PlanArgs>({
 	name: "task.plan",
 	description: "Formulate a strategy to achieve the current task's DoD.",
 	inputSchema: {
@@ -25,20 +25,32 @@ export const plan: EffectDefinition<z.infer<typeof PlanArgsSchema>> = {
 		},
 		required: ["strategy", "reasoning"],
 	},
-	handler: async ({ strategy, reasoning }) => {
-		const currentTask = taskStack.currentTask;
-		if (!currentTask) {
-			return effectResult.fail("No task found to plan for.");
+
+	handler: async (args: PlanArgs): Promise<EffectResponse<void>> => {
+		try {
+			const { strategy, reasoning } = PlanArgsSchema.parse(args);
+			const currentTask = taskStack.currentTask;
+
+			if (!currentTask) {
+				// fail() は EffectResponse<never> を返すので、void 型にも安全に適合
+				return effectResult.fail("No active task found in the stack to plan for.");
+			}
+
+			taskStack.updateCurrentTask({
+				strategy,
+				reasoning,
+			});
+
+			console.log(`[TaskPlan] Strategy recorded for: ${currentTask.title}`);
+
+			// 成功時：okVoid を使用。
+			// これにより、data プロパティには undefined がセットされることが保証される。
+			return effectResult.okVoid(
+				`Strategy for "${currentTask.title}" has been updated. You can now proceed with implementation.`,
+			);
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Planning error: ${errorMessage}`);
 		}
-
-		// インメモリのタスクオブジェクトを更新
-		taskStack.updateCurrentTask({
-			strategy,
-			reasoning,
-		});
-
-		console.log(`[Plan] Strategy recorded for: ${currentTask.title}`);
-
-		return effectResult.ok("Strategy has been updated in memory.");
 	},
-};
+});

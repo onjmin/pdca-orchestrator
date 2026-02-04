@@ -36,7 +36,7 @@ while (taskStack.isNotEmpty()) {
 - **`task.plan`**: 解決に向けた具体的な戦略を立てる。
 - **`task.split`**: 戦略を小さな作業単位に切り出し、スタックに積む。
 - **`web.notify`**: Discord等で進捗を報告する。
-- **`file.write / read`**: ファイルを直接読み書きする。
+- **`file.write / grep`**: ファイルを直接読み書きする。
 
 ## 特徴
 - **リソース節約**: 情報を整理して送るため、16GB vRAM環境でも動作が重くなりません。

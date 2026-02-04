@@ -1,26 +1,26 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
-import { type EffectDefinition, effectResult } from "../types";
+import { createEffect, type EffectResponse, effectResult } from "../types";
 
-/**
- * LLMから受け取る引数の定義
- */
 export const SplitArgsSchema = z.object({
 	subTask: z.object({
-		title: z.string(),
-		description: z.string(),
-		dod: z.string(),
+		title: z.string().describe("Clear and concise title for the sub-task."),
+		description: z.string().describe("Detailed explanation of what needs to be done."),
+		dod: z.string().describe("Specific Definition of Done for this sub-task."),
 	}),
-	reasoning: z.string(), // なぜこの分割が最適だと思ったか
+	reasoning: z.string().describe("Logical reason why this sub-task is the necessary next step."),
 });
+
+export type SplitArgs = z.infer<typeof SplitArgsSchema>;
 
 /**
  * EFFECT: task.split
- * 戦略を具体化するために、最初の一歩となるサブタスクをスタックに1つ追加する
+ * サブタスクをスタックに積む。
+ * データ返却は不要なため、EffectResponse<void> を約束する。
  */
-export const split: EffectDefinition<z.infer<typeof SplitArgsSchema>> = {
+export const split = createEffect<SplitArgs>({
 	name: "task.split",
-	description: "Create the very first sub-task based on the current strategy.",
+	description: "Create a focused sub-task and push it onto the stack to begin implementation.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -37,23 +37,34 @@ export const split: EffectDefinition<z.infer<typeof SplitArgsSchema>> = {
 		},
 		required: ["subTask", "reasoning"],
 	},
-	handler: async ({ subTask, reasoning }) => {
-		const currentTask = taskStack.currentTask;
-		if (!currentTask) {
-			return effectResult.fail("No parent task found to split.");
+
+	// 戻り値を EffectResponse<void> に固定
+	handler: async (args: SplitArgs): Promise<EffectResponse<void>> => {
+		try {
+			const { subTask, reasoning } = SplitArgsSchema.parse(args);
+			const currentTask = taskStack.currentTask;
+
+			if (!currentTask) {
+				// fail は EffectResponse<never> なので void に代入可能
+				return effectResult.fail("No parent task found in the stack to split.");
+			}
+
+			console.log(`[TaskSplit] Reasoning: ${reasoning}`);
+			console.log(`[TaskSplit] New Sub-task: ${subTask.title}`);
+
+			taskStack.push({
+				title: subTask.title,
+				description: subTask.description,
+				dod: subTask.dod,
+			});
+
+			// 成功時：okVoid で data: undefined を強制
+			return effectResult.okVoid(
+				`Sub-task "${subTask.title}" has been pushed to the stack. You are now focusing on this sub-task.`,
+			);
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			return effectResult.fail(`Split error: ${errorMessage}`);
 		}
-
-		console.log(`[Split] Reasoning: ${reasoning}`);
-		console.log(`[Split] New Sub-task: ${subTask.title}`);
-
-		// 子タスクをスタックに積む (+1)
-		taskStack.push({
-			title: subTask.title,
-			description: subTask.description,
-			dod: subTask.dod,
-			// strategyなどは最初は空
-		});
-
-		return effectResult.ok(`Sub-task "${subTask.title}" has been pushed to the stack.`);
 	},
-};
+});

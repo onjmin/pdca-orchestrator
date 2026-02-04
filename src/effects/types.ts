@@ -1,28 +1,40 @@
-// すべてのエフェクトで共通のレスポンス形式
-export interface EffectResponse<T = any> {
-    success: boolean;
-    summary: string; // LLMが次の一手を決めるための短い報告
-    data?: T;        // プログラムが利用する詳細データ
-    error?: string;
+// 成功時と失敗時を型レベルで分離する
+export type EffectResponse<T = void> =
+	| { success: true; summary: string; data: T; error?: never }
+	| { success: false; summary: string; data?: never; error: string };
+
+export interface EffectDefinition<T, R = void> {
+	name: string;
+	description: string;
+	inputSchema: object;
+	handler: (args: T) => Promise<EffectResponse<R>>;
 }
 
-// エフェクト定義のインターフェース
-export interface EffectDefinition<T> {
-    name: string;
-    description: string;
-    inputSchema: object;
-    handler: (args: T) => Promise<EffectResponse>;
+export function createEffect<T, R = void>(
+	definition: EffectDefinition<T, R>,
+): EffectDefinition<T, R> {
+	return definition;
 }
 
 export const effectResult = {
-    ok: <T>(summary: string, data?: T): EffectResponse<T> => ({
-        success: true,
-        summary,
-        data,
-    }),
-    fail: (error: string): EffectResponse => ({
-        success: false,
-        summary: `Error: ${error}`,
-        error,
-    }),
+	// R が void の場合は data を省略可能にするためのオーバーロード
+	ok: <R>(summary: string, data: R): EffectResponse<R> => ({
+		success: true,
+		summary,
+		data,
+	}),
+	// 戻り値データがない(void)場合のヘルパー
+	okVoid: (summary: string): EffectResponse<void> => ({
+		success: true,
+		summary,
+		data: undefined,
+	}),
+	// fail は data を持たず、error を必須にする。
+	// R が何であっても代入可能なように EffectResponse<any> ではなく
+	// Union 型の構造を利用する
+	fail: (error: string): EffectResponse<never> => ({
+		success: false,
+		summary: `Error: ${error}`,
+		error,
+	}),
 };
