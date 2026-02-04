@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { fetchContent } from "../../effects/web/fetch";
 
 async function testFetch() {

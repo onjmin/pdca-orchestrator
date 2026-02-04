@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { exec } from "../../effects/shell/exec";
 
 async function testShellExec() {

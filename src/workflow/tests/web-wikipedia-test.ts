@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { wikipedia } from "../../effects/web/wikipedia";
 
 async function testWikipedia() {

@@ -14,6 +14,7 @@
     "test:fetch": "tsx src/workflow/tests/web-fetch-test.ts",
     "test:shell": "tsx src/workflow/tests/shell-exec-test.ts",
     "test:github": "tsx src/workflow/tests/github-auth-test.ts",
+    "test:write": "tsx src/workflow/tests/file-write-test.ts",
     "test:all": "pnpm test:llm && pnpm test:shell && pnpm test:wiki && pnpm test:fetch && pnpm test:search && pnpm test:github"
   },
   "keywords": [],
