@@ -37,7 +37,7 @@ async function getClient(): Promise<Client> {
 /**
  * 指定した GitHub ツールを呼び出す共通関数
  */
-export async function callGithubMcp(toolName: string, args: any) {
+export async function callGithubMcp(toolName: string, args: Record<string, unknown>) {
 	const client = await getClient();
 
 	try {
@@ -53,8 +53,9 @@ export async function callGithubMcp(toolName: string, args: any) {
 		}
 
 		return response.content;
-	} catch (error: any) {
-		console.error(`[MCP Error] Tool ${toolName} failed:`, error);
+	} catch (error: unknown) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		console.error(`[MCP Error] Tool ${toolName} failed:`, errorMessage);
 		throw error;
 	}
 }

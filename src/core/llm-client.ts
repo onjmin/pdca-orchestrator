@@ -3,7 +3,7 @@ const LM_KEY = process.env.LM_STUDIO_API_KEY;
 
 export interface LLMOutput {
 	content: string; // 生のテキスト（思考や回答）
-	parsed?: any; // JSONとしてパースされたデータ（成功時のみ）
+	parsed?: unknown; // JSONとしてパースされたデータ（成功時のみ）
 }
 
 export const llm = {
