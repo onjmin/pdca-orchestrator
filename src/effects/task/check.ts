@@ -56,7 +56,10 @@ export const check = createEffect<CheckArgs, CheckData>({
 
 			// 失敗時：小人に「次に何をすべきか」を考えさせるフィードバックを返す
 			return effectResult.ok(
-				`FAILED: "${currentTask.title}" is NOT done. ${reason}. DO NOT check again immediately; perform an action to verify or fix first.`,
+				`STILL IN PROGRESS: ${reason}. \n` +
+					`Hint: If you need to verify content, use 'file.read'. \n` +
+					`If you need to verify logic, use 'task.split' to create a verification sub-task. \n` +
+					`DO NOT just rewrite the same file.`,
 				{ status: "continuing" },
 			);
 		} catch (err) {
