@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { EffectDefinition, EffectResponse } from "../effects/types";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
@@ -63,7 +65,8 @@ Respond with only the effect name.
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
 
-		// completeAsJson ではなく、生のテキストを返す complete を使う
+		// 小人が次に何をするか選ぶフェーズ
+		await savePromptLog("1-select-next", prompt);
 		const rawContent = await llm.complete(prompt);
 
 		if (!rawContent) {
@@ -134,6 +137,8 @@ Generate JSON arguments. Use "__DATA__" where required.
 Respond with ONLY the JSON object.
 `.trim();
 
+		// 選んだツールの引数（__DATA__含み）を考えるフェーズ
+		await savePromptLog("2-dispatch-args", argPrompt);
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
 		if (jsonError || !args || typeof args !== "object") {
 			this.recordObservation({
@@ -165,6 +170,8 @@ For example, if this is a file write, provide the source code now.
 - Output ONLY the raw content.
 `.trim();
 
+			// __DATA__ に流し込む中身（コード等）を考えるフェーズ
+			await savePromptLog("3-dispatch-raw", rawPrompt);
 			const rawContent = await llm.complete(rawPrompt);
 
 			// 追加：生テキストが取得できなかった場合のガード
@@ -216,3 +223,18 @@ For example, if this is a file write, provide the source code now.
 		this.lastEffectResult = result;
 	},
 };
+
+/**
+ * デバッグ用：最新のプロンプトをファイルに上書き保存する
+ */
+async function savePromptLog(fileName: string, prompt: string) {
+	if (process.env.DEBUG_PROMPT !== "1") return;
+
+	const logDir = path.join(process.cwd(), "logs", "prompts");
+	if (!fs.existsSync(logDir)) {
+		fs.mkdirSync(logDir, { recursive: true });
+	}
+
+	// 常に同じファイル名で上書き
+	await fs.promises.writeFile(path.join(logDir, `${fileName}.txt`), prompt, "utf8");
+}
