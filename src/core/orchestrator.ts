@@ -71,11 +71,23 @@ Respond with only the effect name.
 	},
 
 	/**
-	 * 2. 選ばれたエフェクトを実行する（引数生成 + 実行）
+	 * 2. 選ばれたエフェクトを実行する（3ステップ構成）
 	 */
 	async dispatch(effect: any, effectName: string, task: Task): Promise<any> {
-		// 引数生成用のプロンプト
-		// selectNextEffectに渡した情報に加えて、「スキーマ」を詳細に提示する
+		// --- [STEP 2: Argument Generation with Contract] ---
+
+		// スキーマをLLM用に加工（isRawDataがある項目を強制的にプレースホルダー指示に書き換える）
+		const schemaForLlm = JSON.parse(JSON.stringify(effect.inputSchema));
+		let hasRawDataField = false;
+
+		Object.keys(schemaForLlm.properties || {}).forEach((key) => {
+			if (effect.inputSchema.properties[key].isRawData) {
+				hasRawDataField = true;
+				schemaForLlm.properties[key].description =
+					"!!! MANDATORY: Write ONLY the exact string '__DATA__' here. NEVER put actual text, code, or brackets in this field. It will be requested in the next step. !!!";
+			}
+		});
+
 		const argPrompt = `
 You are using the tool: "${effectName}"
 Description: ${effect.description}
@@ -84,38 +96,68 @@ Description: ${effect.description}
 Task: ${task.title}
 Strategy: ${task.strategy || "N/A"}
 
-### Current Observation
-${JSON.stringify(this.lastEffectResult || "No previous action.")}
-
 ### Required JSON Schema
-${JSON.stringify(effect.inputSchema, null, 2)}
+${JSON.stringify(schemaForLlm, null, 2)}
 
-### Instruction
-Based on the task and observation, generate the JSON arguments.
+### Instruction & Contract
+1. Generate JSON arguments following the schema above.
+2. If a field asks for "__DATA__", you MUST use the literal string "__DATA__". 
+3. DO NOT output the actual content/code/brackets inside the JSON. This is a strict contract to prevent JSON corruption.
 Respond with ONLY the JSON object.
-        `.trim();
+    `.trim();
 
 		console.log(`[Brain] Generating arguments for: ${effectName}`);
+		const { data: args, error } = await llm.completeAsJson(argPrompt);
 
-		// JSON救出ロジック入りの呼び出し
-		const { data, error } = await llm.completeAsJson(argPrompt);
-		if (error || !data) {
+		if (error || !args) {
 			console.warn(`[Skip] Failed to get valid JSON for ${effectName}`);
+			this.recordObservation({ success: false, summary: "JSON argument generation failed." });
 			return;
 		}
 
-		// 原子的な実行
-		const result = await effect.handler(data);
+		// --- [STEP 3: Raw Data Retrieval] ---
 
-		// 結果をそのままインメモリに保存
-		// 成功・失敗に関わらず、起きたことすべてを「知見」にする
-		this.lastEffectResult = {
+		const finalArgs: Record<string, any> = { ...args };
+
+		if (hasRawDataField) {
+			console.log(`[Brain] Fetching raw data for placeholder...`);
+
+			const rawPrompt = `
+In the previous step, you used "__DATA__" for a field in "${effectName}".
+Now, provide the ACTUAL content (code, text, or raw data) that should replace "__DATA__".
+
+### Rules
+- NO Markdown code blocks (no \`\`\`).
+- NO explanations or preamble.
+- Output ONLY the raw content itself.
+      `.trim();
+
+			const rawContent = await llm.complete(rawPrompt);
+
+			// args内の "__DATA__" を取得した生テキストで置換
+			Object.keys(finalArgs).forEach((key) => {
+				if (finalArgs[key] === "__DATA__") {
+					finalArgs[key] = rawContent;
+				}
+			});
+		}
+
+		// --- [Execution] ---
+
+		console.log(`[Exec] Running ${effectName}...`);
+		const result = await effect.handler(finalArgs);
+
+		this.recordObservation({
 			effectName,
 			summary: result.summary,
-			data: result.data, // ファイルの中身や実行ログなど
+			data: result.data,
 			success: result.success,
-		};
+		});
 
 		return result;
+	},
+
+	recordObservation(result: any) {
+		this.lastEffectResult = result;
 	},
 };
