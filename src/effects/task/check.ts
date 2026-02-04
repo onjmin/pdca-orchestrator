@@ -21,7 +21,8 @@ export interface CheckData {
  */
 export const check = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
-	description: "Verify DoD. DO NOT call this twice without taking other actions.",
+	description:
+		"Verify DoD. If verification is complex or missing evidence, use 'task.split' to create a dedicated verification task before passing.",
 	inputSchema: {
 		type: "object",
 		properties: {

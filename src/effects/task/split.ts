@@ -20,7 +20,8 @@ export type SplitArgs = z.infer<typeof SplitArgsSchema>;
  */
 export const split = createEffect<SplitArgs>({
 	name: "task.split",
-	description: "Create a focused sub-task and push it onto the stack to begin implementation.",
+	description:
+		"Create a sub-task. Use this to break down implementation OR to create a specific 'Verification Task' to prove a DoD item.",
 	inputSchema: {
 		type: "object",
 		properties: {
