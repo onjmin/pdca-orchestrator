@@ -78,7 +78,7 @@ async function main() {
 	console.log("--- 小人が起きました ---");
 
 	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
-	const goalPath = resolve(process.cwd(), "GOAL");
+	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let initialTask = {
 		title: "Initial Goal",
 		description: "Establish the development environment.",
