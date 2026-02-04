@@ -75,6 +75,7 @@ pnpm test:all
 
 個別に確認したい場合は、以下のコマンドを利用してください：
 
+* **Discord疎通確認**: ``pnpm test:discord``
 * **LLM接続**: ``pnpm test:llm`` (API応答とJSONパースの確認)
 * **シェル実行**: ``pnpm test:shell`` (コマンド実行権限の確認)
 * **Web検索**: ``pnpm test:duckduckgo`` (DuckDuckGo MCPの起動確認)
