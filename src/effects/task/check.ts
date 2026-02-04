@@ -16,12 +16,12 @@ export interface CheckData {
 
 /**
  * EFFECT: task.check
- * 改修前のロジック（isPassedによる分岐とスタック操作）を維持しつつ、
- * Union型ベースの厳格な型定義へ適合。
+ * タスクの完了を判定します。
+ * 小人が検証ループに陥らないよう、説明文に強い制約を追加。
  */
 export const check = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
-	description: "Evaluate the current situation against the Definition of Done (DoD).",
+	description: "Verify DoD. DO NOT call this twice without taking other actions.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -34,7 +34,6 @@ export const check = createEffect<CheckArgs, CheckData>({
 
 	handler: async (args: CheckArgs): Promise<EffectResponse<CheckData>> => {
 		try {
-			// 1. バリデーションとコンテキスト確認
 			const { observations, isPassed, reason } = CheckArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
@@ -42,25 +41,23 @@ export const check = createEffect<CheckArgs, CheckData>({
 				return effectResult.fail("No task found in the stack. Cannot perform check.");
 			}
 
-			// 2. ログ出力
 			console.log(`[TaskCheck] Observation: ${observations}`);
 			console.log(`[TaskCheck] Result: ${isPassed ? "PASSED" : "FAILED"}`);
 			console.log(`[TaskCheck] Reason: ${reason}`);
 
-			// 3. 元のロジックに基づく分岐
 			if (isPassed) {
-				taskStack.pop(); // 合格ならタスク完了
+				taskStack.pop();
 				return effectResult.ok(
-					`Task "${currentTask.title}" marked as completed and removed from stack.`,
+					`Task "${currentTask.title}" COMPLETED. Environment is now stable.`,
 					{ status: "completed" },
 				);
-			} else {
-				// 不合格なら継続。reason を summary に含めて AI へフィードバック
-				return effectResult.ok(
-					`Task "${currentTask.title}" is still in progress. Reasoning: ${reason}`,
-					{ status: "continuing" },
-				);
 			}
+
+			// 失敗時：小人に「次に何をすべきか」を考えさせるフィードバックを返す
+			return effectResult.ok(
+				`FAILED: "${currentTask.title}" is NOT done. ${reason}. DO NOT check again immediately; perform an action to verify or fix first.`,
+				{ status: "continuing" },
+			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			return effectResult.fail(`Check execution error: ${errorMessage}`);
