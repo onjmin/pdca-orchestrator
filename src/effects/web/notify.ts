@@ -4,13 +4,13 @@ import { type EffectDefinition, effectResult } from "../types";
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL ?? "";
 
 // 入力バリデーション用の Zod スキーマ
-export const NotifyProgressSchema = z.object({
+export const NotifyArgsSchema = z.object({
 	status: z.enum(["info", "success", "warning", "error"]),
 	message: z.string().min(1),
 });
 
 // Zod から型を抽出
-export type NotifyProgressArgs = z.infer<typeof NotifyProgressSchema>;
+export type NotifyProgressArgs = z.infer<typeof NotifyArgsSchema>;
 
 /**
  * EFFECT: web.notify
@@ -38,7 +38,7 @@ export const notify: EffectDefinition<NotifyProgressArgs> = {
 	handler: async (args) => {
 		try {
 			// バリデーションの実行
-			const { status, message } = NotifyProgressSchema.parse(args);
+			const { status, message } = NotifyArgsSchema.parse(args);
 
 			if (!DISCORD_WEBHOOK_URL) {
 				throw new Error("DISCORD_WEBHOOK_URL is not configured.");

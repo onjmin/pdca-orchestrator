@@ -61,22 +61,38 @@ Respond with only the effect name.
 		// completeAsJson ではなく、生のテキストを返す complete を使う
 		const rawContent = await llm.complete(prompt);
 
-		if (!rawContent) return null;
+		if (!rawContent) {
+			// ここで記録する！
+			this.recordObservation({
+				success: false,
+				summary: "Decision failed: LLM did not return any effect name.",
+				data: { action: "Waiting for retry or check status." },
+			});
+			return null;
+		}
 
 		// LLMが「Next effect: task.plan」のように喋ってしまった場合を考慮し、
 		// 登録されているエフェクト名が文字列の中に含まれているか探す
 		const found = Object.keys(registry).find((name) => rawContent.includes(name));
 
-		return found ?? null;
+		if (!found) {
+			// 「何か喋ったけど、存在するツール名じゃなかった」場合も記録
+			this.recordObservation({
+				success: false,
+				summary: `Decision failed: Selected effect "${rawContent.substring(0, 50)}" is not available.`,
+				data: { available: Object.keys(registry) },
+			});
+			return null;
+		}
+
+		return found;
 	},
 
 	/**
 	 * 2. 選ばれたエフェクトを実行する（3ステップ構成）
 	 */
 	async dispatch(effect: any, effectName: string, task: Task): Promise<any> {
-		// --- [STEP 2: Argument Generation with Contract] ---
-
-		// スキーマをLLM用に加工（isRawDataがある項目を強制的にプレースホルダー指示に書き換える）
+		// --- [STEP 2: Argument Generation] ---
 		const schemaForLlm = JSON.parse(JSON.stringify(effect.inputSchema));
 		let hasRawDataField = false;
 
@@ -84,7 +100,7 @@ Respond with only the effect name.
 			if (effect.inputSchema.properties[key].isRawData) {
 				hasRawDataField = true;
 				schemaForLlm.properties[key].description =
-					"!!! MANDATORY: Write ONLY the exact string '__DATA__' here. NEVER put actual text, code, or brackets in this field. It will be requested in the next step. !!!";
+					"!!! MANDATORY: Write ONLY the exact string '__DATA__' here. !!!";
 			}
 		});
 
@@ -94,67 +110,86 @@ Description: ${effect.description}
 
 ### Task Context
 Task: ${task.title}
-Strategy: ${task.strategy || "N/A"}
+DoD: ${task.dod}
+
+### Observation from Previous Step
+${JSON.stringify(this.lastEffectResult || "No previous action.", null, 2)}
 
 ### Required JSON Schema
 ${JSON.stringify(schemaForLlm, null, 2)}
 
-### Instruction & Contract
-1. Generate JSON arguments following the schema above.
-2. If a field asks for "__DATA__", you MUST use the literal string "__DATA__". 
-3. DO NOT output the actual content/code/brackets inside the JSON. This is a strict contract to prevent JSON corruption.
+### Instruction
+Generate JSON arguments. Use "__DATA__" where required.
 Respond with ONLY the JSON object.
-    `.trim();
+`.trim();
 
-		console.log(`[Brain] Generating arguments for: ${effectName}`);
 		const { data: args, error } = await llm.completeAsJson(argPrompt);
-
 		if (error || !args) {
-			console.warn(`[Skip] Failed to get valid JSON for ${effectName}`);
 			this.recordObservation({ success: false, summary: "JSON argument generation failed." });
 			return;
 		}
 
 		// --- [STEP 3: Raw Data Retrieval] ---
-
 		const finalArgs: Record<string, any> = { ...args };
 
 		if (hasRawDataField) {
-			console.log(`[Brain] Fetching raw data for placeholder...`);
-
+			// ここで背景情報をしっかり渡す
 			const rawPrompt = `
-In the previous step, you used "__DATA__" for a field in "${effectName}".
-Now, provide the ACTUAL content (code, text, or raw data) that should replace "__DATA__".
+### Context
+Task: ${task.title}
+Executing Tool: ${effectName}
+Partial Arguments: ${JSON.stringify(args)}
+
+### Instruction
+Provide the ACTUAL content to replace "__DATA__". 
+For example, if this is a file write, provide the source code now.
 
 ### Rules
-- NO Markdown code blocks (no \`\`\`).
-- NO explanations or preamble.
-- Output ONLY the raw content itself.
-      `.trim();
+- NO Markdown code blocks.
+- NO explanations.
+- Output ONLY the raw content.
+`.trim();
 
 			const rawContent = await llm.complete(rawPrompt);
 
-			// args内の "__DATA__" を取得した生テキストで置換
+			// 追加：生テキストが取得できなかった場合のガード
+			if (!rawContent) {
+				console.warn(`[Skip] Failed to get raw content for ${effectName}`);
+				this.recordObservation({
+					success: false,
+					summary: `Failed to retrieve the raw content for field marked as __DATA__.`,
+				});
+				return;
+			}
+
 			Object.keys(finalArgs).forEach((key) => {
-				if (finalArgs[key] === "__DATA__") {
+				// string型であることを確認しつつ、前後の空白を除去して判定
+				if (typeof finalArgs[key] === "string" && finalArgs[key].trim() === "__DATA__") {
 					finalArgs[key] = rawContent;
 				}
 			});
 		}
 
 		// --- [Execution] ---
-
-		console.log(`[Exec] Running ${effectName}...`);
-		const result = await effect.handler(finalArgs);
-
-		this.recordObservation({
-			effectName,
-			summary: result.summary,
-			data: result.data,
-			success: result.success,
-		});
-
-		return result;
+		try {
+			console.log(`[Exec] Running ${effectName}...`);
+			const result = await effect.handler(finalArgs);
+			this.recordObservation({
+				effectName,
+				summary: result.summary,
+				data: result.data,
+				success: result.success,
+			});
+			return result;
+		} catch (e: any) {
+			// handlerが予期せぬエラーで落ちた場合もObservationとして記録
+			this.recordObservation({
+				success: false,
+				summary: `Runtime error in ${effectName}: ${e.message}`,
+				effectName,
+			});
+			return;
+		}
 	},
 
 	recordObservation(result: any) {
