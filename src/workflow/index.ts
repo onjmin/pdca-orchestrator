@@ -122,22 +122,9 @@ async function main() {
 	} finally {
 		// 5. 後片付け (正常終了・異常終了に関わらず実行)
 		console.log("--- 小人が道具を片付けて寝ます ---");
-		mcpManager.shutdown();
 	}
 }
 
-// Ctrl+C 等のシグナル割り込みでも確実にシャットダウンする
-const handleExit = () => {
-	console.log("\n[SYSTEM] 強制終了を検知しました。後片付け中...");
-	mcpManager.shutdown();
-	process.exit();
-};
-
-process.on("SIGINT", handleExit);
-process.on("SIGTERM", handleExit);
-
 main().catch((err) => {
 	console.error(err);
-	mcpManager.shutdown();
-	process.exit(1);
 });
