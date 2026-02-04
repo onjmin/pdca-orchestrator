@@ -2,6 +2,23 @@ import "dotenv/config";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 
+// ここで各エフェクトをインポート
+import { analyze } from "../effects/ai/analyze";
+import { check } from "../effects/task/check";
+import { plan } from "../effects/task/plan";
+import { split } from "../effects/task/split";
+import { notify } from "../effects/web/notify";
+
+// 利用可能なエフェクトのカタログ
+const registry: Record<string, any> = {
+	"task.check": check,
+	"task.plan": plan,
+	"task.split": split,
+	"web.notify": notify,
+	"ai.analyze": analyze,
+	// "file.write": write, // 追加すれば勝手にLLMが選択肢に含める
+};
+
 async function main() {
 	// 1. 初手のタスク投入 (ここは基盤側で行う)
 	taskStack.push({
@@ -11,7 +28,7 @@ async function main() {
 	});
 
 	// 2. 初手のエフェクトを選択 (LLMがスタックを見て "task.check" を選ぶ)
-	let nextEffectName = await orchestrator.selectNextEffect();
+	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
 
 	while (!taskStack.isEmpty()) {
 		const currentTask = taskStack.currentTask;
@@ -19,13 +36,11 @@ async function main() {
 
 		// 3. 選択されたエフェクトを原子的に実行
 		// (この内部で taskStack.push/pop やファイル操作が行われる)
-		await orchestrator.dispatch(nextEffectName, currentTask);
+		await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
 
 		// 4. 実行後の「最新の状態」を見て、次の一手をLLMに再選択させる
 		// ここで task.plan に行くか、file.write に行くかをLLMが毎回決める
-		nextEffectName = await orchestrator.selectNextEffect();
-
-		if (!nextEffectName) break; // 選べなければ終了
+		nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
 	}
 }
 

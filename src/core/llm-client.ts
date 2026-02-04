@@ -18,7 +18,7 @@ export const llm = {
 	/**
 	 * JSONとして回答を得る（主に引数生成用）
 	 */
-	async completeAsJson(prompt: string): Promise<any> {
+	async completeAsJson(prompt: string): Promise<{ data: object | null; error: string | null }> {
 		const res = await this.ask(prompt);
 		return repairAndParseJSON(res.content);
 	},
@@ -51,10 +51,10 @@ export const llm = {
 /**
  * LLMが混ぜたノイズからJSONを救出する
  */
-function repairAndParseJSON(badJson: string): any {
+function repairAndParseJSON(badJson: string): { data: object | null; error: string | null } {
 	try {
 		// 1. そのままパース
-		return JSON.parse(badJson);
+		return { data: JSON.parse(badJson), error: null };
 	} catch {
 		// 2. ブラケットを探して抽出
 		const start = badJson.indexOf("{");
@@ -63,12 +63,11 @@ function repairAndParseJSON(badJson: string): any {
 		if (start !== -1 && end !== -1 && end > start) {
 			const candidate = badJson.slice(start, end + 1);
 			try {
-				return JSON.parse(candidate);
-			} catch (e) {
-				console.error("[JSON Repair] Found candidate but failed to parse:", candidate);
-				throw e;
+				return { data: JSON.parse(candidate), error: null };
+			} catch {
+				return { data: null, error: `Invalid JSON structure: ${candidate}` };
 			}
 		}
-		throw new Error(`Could not find JSON structure in LLM output: ${badJson}`);
+		return { data: null, error: "No JSON object found in response" };
 	}
 }

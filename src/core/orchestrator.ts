@@ -1,21 +1,5 @@
-// ここで各エフェクトをインポート（本来は動的インポートが理想）
-import { analyze } from "../effects/ai/analyze";
-import { check } from "../effects/task/check";
-import { plan } from "../effects/task/plan";
-import { split } from "../effects/task/split";
-import { notify } from "../effects/web/notify";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
-
-// 利用可能なエフェクトのカタログ
-const registry: Record<string, any> = {
-	"task.check": check,
-	"task.plan": plan,
-	"task.split": split,
-	"web.notify": notify,
-	"ai.analyze": analyze,
-	// "file.write": write, // 追加すれば勝手にLLMが選択肢に含める
-};
 
 export const orchestrator = {
 	// 最新のEffect実行結果を保持するバッファ
@@ -24,7 +8,7 @@ export const orchestrator = {
 	/**
 	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
 	 */
-	async selectNextEffect(): Promise<string> {
+	async selectNextEffect(registry: Record<string, any>): Promise<string | null> {
 		const stack = taskStack.getStack();
 		if (stack.length === 0) return "";
 
@@ -51,7 +35,7 @@ Reasoning: ${currentTask.reasoning || "None"}
 			: "No previous action.";
 		const observation =
 			rawObservation.length > 2000
-				? rawObservation.substring(0, 2000) + "... (truncated)"
+				? `${rawObservation.substring(0, 2000)}... (truncated)"`
 				: rawObservation;
 
 		// 4. 最終的なプロンプト構成
@@ -74,30 +58,54 @@ Respond with only the effect name.
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
 
-		// ここで LLM API を叩く
-		const nextEffect = await llm.completeAsJson(prompt);
-		return nextEffect;
+		// completeAsJson ではなく、生のテキストを返す complete を使う
+		const rawContent = await llm.complete(prompt);
+
+		if (!rawContent) return null;
+
+		// LLMが「Next effect: task.plan」のように喋ってしまった場合を考慮し、
+		// 登録されているエフェクト名が文字列の中に含まれているか探す
+		const found = Object.keys(registry).find((name) => rawContent.includes(name));
+
+		return found ?? null;
 	},
+
 	/**
 	 * 2. 選ばれたエフェクトを実行する（引数生成 + 実行）
 	 */
-	async dispatch(effectName: string, task: Task): Promise<any> {
-		const effect = registry[effectName];
-		if (!effect) throw new Error(`Effect not found: ${effectName}`);
+	async dispatch(effect: any, effectName: string, task: Task): Promise<any> {
+		// 引数生成用のプロンプト
+		// selectNextEffectに渡した情報に加えて、「スキーマ」を詳細に提示する
+		const argPrompt = `
+You are using the tool: "${effectName}"
+Description: ${effect.description}
 
-		// --- [LLM CALL 2: ARGUMENT GENERATION] ---
-		// プロンプト案:
-		// 「ツール ${effectName} を実行します。説明: ${effect.description}」
-		// 「以下のスキーマに従って JSON 引数を生成してください: ${JSON.stringify(effect.inputSchema)}」
+### Task Context
+Task: ${task.title}
+Strategy: ${task.strategy || "N/A"}
 
-		// 仮の引数（本来はLLMが生成する）
-		const dummyArgs: any = {
-			observations: "The directory is empty. No files found.",
-			isPassed: false,
-		};
+### Current Observation
+${JSON.stringify(this.lastEffectResult || "No previous action.")}
+
+### Required JSON Schema
+${JSON.stringify(effect.inputSchema, null, 2)}
+
+### Instruction
+Based on the task and observation, generate the JSON arguments.
+Respond with ONLY the JSON object.
+        `.trim();
+
+		console.log(`[Brain] Generating arguments for: ${effectName}`);
+
+		// JSON救出ロジック入りの呼び出し
+		const { data, error } = await llm.completeAsJson(argPrompt);
+		if (error || !data) {
+			console.warn(`[Skip] Failed to get valid JSON for ${effectName}`);
+			return;
+		}
 
 		// 原子的な実行
-		const result = await effect.handler(dummyArgs);
+		const result = await effect.handler(data);
 
 		// 結果をそのままインメモリに保存
 		// 成功・失敗に関わらず、起きたことすべてを「知見」にする
