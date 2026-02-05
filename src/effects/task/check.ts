@@ -22,7 +22,7 @@ export interface CheckData {
 export const check = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
 	description:
-		"Verify DoD. If verification is complex or missing evidence, use 'task.split' to create a dedicated verification task before passing.",
+		"Declare task completion. ONLY use this when you have EVIDENCE that the change is correct (e.g., after verifying with 'file.read_lines'). DO NOT call this immediately after every file modification.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -57,9 +57,8 @@ export const check = createEffect<CheckArgs, CheckData>({
 			// 失敗時：小人に「次に何をすべきか」を考えさせるフィードバックを返す
 			return effectResult.ok(
 				`STILL IN PROGRESS: ${reason}. \n` +
-					`Hint: If you need to verify content, use 'file.read'. \n` +
-					`If you need to verify logic, use 'task.split' to create a verification sub-task. \n` +
-					`DO NOT just rewrite the same file.`,
+					`Hint: Before calling check again, ALWAYS use 'file.read_lines' to verify your changes actually look correct. \n` +
+					`If complex logic is involved, use 'task.split' to plan a systematic test.`,
 				{ status: "continuing" },
 			);
 		} catch (err) {

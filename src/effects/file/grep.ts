@@ -28,7 +28,7 @@ export interface FileGrepData {
 export const grep = createEffect<FileGrepArgs, FileGrepData>({
 	name: "file.grep",
 	description:
-		"Search for patterns within files using system grep. High performance for large projects.",
+		"Find keywords and line numbers. After finding a match, YOU MUST use 'file.read_lines' to inspect the surrounding code before making any changes. NEVER jump directly to patching.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -44,9 +44,10 @@ export const grep = createEffect<FileGrepArgs, FileGrepData>({
 			const { path: searchPath, pattern_placeholder, recursive } = FileGrepArgsSchema.parse(args);
 			const safePath = getSafePath(searchPath);
 
-			const flags = recursive ? "-rnIE" : "-nIE";
+			// -C 3 を追加して、前後の3行ずつ（計7行分）を表示させる
+			const flags = recursive ? "-rnIEC 3" : "-nIEC 3";
 			const escapedPattern = pattern_placeholder.replace(/"/g, '\\"');
-			const command = `grep ${flags} "${escapedPattern}" "${safePath}"`;
+			const command = `grep ${flags} --no-group-separator "${escapedPattern}" "${safePath}"`;
 
 			const stdout = execSync(command, {
 				encoding: "utf8",
@@ -58,7 +59,7 @@ export const grep = createEffect<FileGrepArgs, FileGrepData>({
 
 			// 成功時: results を含む FileGrepData を返す
 			return effectResult.ok(`Found ${results.length} matches.`, {
-				results: results.slice(0, 100), // AIが混乱しないよう上限を設定
+				results: results.slice(0, 30), // AIが混乱しないよう上限を設定
 			});
 		} catch (err: unknown) {
 			// grep 特有の挙動: ヒットなしは exit code 1
