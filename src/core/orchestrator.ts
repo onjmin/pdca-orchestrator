@@ -9,7 +9,6 @@ type AnyEffect = EffectDefinition<unknown, unknown>;
 
 export const orchestrator = {
 	// 最新のEffect execution結果を保持するバッファ
-	// 識別子付き共用体を尊重し、初期値は null
 	_lastResult: null as EffectResponse<unknown> | null,
 
 	/**
@@ -40,7 +39,6 @@ export const orchestrator = {
 
 		const currentTask = stack[stack.length - 1];
 
-		// 1. インメモリ情報の取り出し（不変の目標）
 		const taskInfo = `
 Current Task: ${currentTask.title}
 Description: ${currentTask.description}
@@ -49,22 +47,10 @@ Strategy: ${currentTask.strategy || "None (Need to plan?)"}
 Reasoning: ${currentTask.reasoning || "None"}
         `.trim();
 
-		// 2. ツール一覧の整形（選択肢）
 		const tools = Object.entries(registry)
 			.map(([name, eff]) => `- ${name}: ${eff.description}`)
 			.join("\n");
 
-		// 3. 直近の実行結果（流動的なデータ）
-		// 巨大すぎるデータはここでカットして影響を最小限にする
-		const rawObservation = this.lastEffectResult
-			? JSON.stringify(this.lastEffectResult, null, 2)
-			: "No previous action.";
-		const observation =
-			rawObservation.length > 2000
-				? `${rawObservation.substring(0, 2000)}... (truncated)"`
-				: rawObservation;
-
-		// 4. 最終的なプロンプト構成
 		const prompt = `
 You are an autonomous agent.
 
@@ -75,7 +61,7 @@ ${taskInfo}
 ${tools}
 
 ### Observation from Previous Step
-${observation}
+${this.lastEffectResult}
 
 ### Instruction
 Based on the current task, strategy, and observation, which effect should you execute next? 
@@ -84,32 +70,26 @@ Respond with only the effect name.
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
 
-		// 小人が次に何をするか選ぶフェーズ
 		await savePromptLog("1-select-next", prompt);
 		const rawContent = await llm.complete(prompt);
 
 		if (!rawContent) {
-			// ここで記録する！
-			// 修正: success: false なので data ではなく error を指定
-			this.recordObservation({
+			this.lastEffectResult = {
 				success: false,
 				summary: "Decision failed: LLM did not return any effect name.",
 				error: "LLM_RESPONSE_EMPTY",
-			});
+			};
 			return null;
 		}
 
-		// LLMが「Next effect: task.plan」のように喋ってしまった場合を考慮し、
-		// 登録されているエフェクト名が文字列の中に含まれているか探す
 		const found = Object.keys(registry).find((name) => rawContent.includes(name));
 
 		if (!found) {
-			// 「何か喋ったけど、存在するツール名じゃなかった」場合も記録
-			this.recordObservation({
+			this.lastEffectResult = {
 				success: false,
 				summary: `Decision failed: Selected effect "${rawContent.substring(0, 50)}" is not available.`,
 				error: `AVAILABLE_EFFECTS: ${Object.keys(registry).join(", ")}`,
-			});
+			};
 			return null;
 		}
 
@@ -126,13 +106,11 @@ Respond with only the effect name.
 	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
 
-		// RawData フィールドの特定と軽量版スキーマの生成
 		let rawDataFieldName = "";
 		const inputSchemaOmitted = (
 			Object.entries(effect.inputSchema) as [string, EffectField][]
 		).reduce(
 			(acc, [key, field]) => {
-				// 1. RawData の場合: スキーマからは必ず除外
 				if (field.isRawData) {
 					if (rawDataFieldName) {
 						console.warn(
@@ -141,10 +119,8 @@ Respond with only the effect name.
 					} else {
 						rawDataFieldName = key;
 					}
-					return acc; // acc に追加せず次のループへ
+					return acc;
 				}
-
-				// 2. 通常フィールドの場合: スキーマに追加
 				acc[key] = field;
 				return acc;
 			},
@@ -160,7 +136,7 @@ Task: ${task.title}
 DoD: ${task.dod}
 
 ### Observation from Previous Step
-${JSON.stringify(this.lastEffectResult || "No previous action.", null, 2)}
+${this.lastEffectResult}
 
 ### Notice
 Some fields (e.g., large data content) are omitted from this schema and will be requested in the FOLLOW-UP step. 
@@ -177,11 +153,11 @@ Respond with ONLY the JSON object.
 		await savePromptLog("2-dispatch-args", argPrompt);
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
 		if (jsonError || !args || typeof args !== "object") {
-			this.recordObservation({
+			this.lastEffectResult = {
 				success: false,
 				summary: "JSON argument generation failed.",
 				error: jsonError || "INVALID_JSON_STRUCTURE",
-			});
+			};
 			return;
 		}
 
@@ -196,7 +172,7 @@ Task: ${task.title}
 Executing Tool: ${effectName}
 Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
 Other Arguments: ${JSON.stringify(args)}
-Latest Observation: ${observation}
+Latest Observation: ${this.lastEffectResult}
 
 ### Instruction
 Provide the ACTUAL content for the field "${rawDataFieldName}".
@@ -212,15 +188,14 @@ If this is code, provide the full source code.
 			const rawContent = await llm.complete(rawPrompt);
 
 			if (!rawContent) {
-				this.recordObservation({
+				this.lastEffectResult = {
 					success: false,
 					summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
 					error: "RAW_CONTENT_RETRIEVAL_FAILED",
-				});
+				};
 				return;
 			}
 
-			// 特定したフィールド名に生データを直接代入
 			finalArgs[rawDataFieldName] = rawContent;
 		}
 
@@ -228,7 +203,7 @@ If this is code, provide the full source code.
 		try {
 			console.log(`[Exec] Running ${effectName}...`);
 			const result = await effect.handler(finalArgs);
-			this.recordObservation(result);
+			this.lastEffectResult = result;
 			return result;
 		} catch (e: unknown) {
 			const errorMessage = e instanceof Error ? e.message : String(e);
@@ -237,16 +212,9 @@ If this is code, provide the full source code.
 				summary: `Runtime error in ${effectName}`,
 				error: errorMessage,
 			};
-			this.recordObservation(failResult);
+			this.lastEffectResult = failResult;
 			return failResult;
 		}
-	},
-
-	/**
-	 * 実行結果をバッファに記録
-	 */
-	recordObservation(result: EffectResponse<unknown>) {
-		this.lastEffectResult = result;
 	},
 };
 
@@ -261,6 +229,5 @@ async function savePromptLog(fileName: string, prompt: string) {
 		fs.mkdirSync(logDir, { recursive: true });
 	}
 
-	// 常に同じファイル名で上書き
 	await fs.promises.writeFile(path.join(logDir, `${fileName}.txt`), prompt, "utf8");
 }
