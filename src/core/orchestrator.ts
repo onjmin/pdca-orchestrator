@@ -107,17 +107,26 @@ Respond with only the effect name.
 	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
 
-		// RawData フィールドの存在確認と、軽量版スキーマの生成
-		let hasRawDataField = false;
+		// RawData フィールドの特定と軽量版スキーマの生成
+		let rawDataFieldName = "";
 		const inputSchemaOmitted = (
 			Object.entries(effect.inputSchema) as [string, EffectField][]
 		).reduce(
 			(acc, [key, field]) => {
+				// 1. RawData の場合: スキーマからは必ず除外
 				if (field.isRawData) {
-					hasRawDataField = true;
-				} else {
-					acc[key] = field;
+					if (rawDataFieldName) {
+						console.warn(
+							`[Orchestrator] Warning: Multiple isRawData fields found in "${effectName}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
+						);
+					} else {
+						rawDataFieldName = key;
+					}
+					return acc; // acc に追加せず次のループへ
 				}
+
+				// 2. 通常フィールドの場合: スキーマに追加
+				acc[key] = field;
 				return acc;
 			},
 			{} as Record<string, EffectField>,
@@ -156,15 +165,9 @@ Respond with ONLY the JSON object.
 		// --- [STEP 3: Raw Data Retrieval] ---
 		const finalArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
 
-		if (hasRawDataField) {
-			// isRawData: true に設定されている唯一のフィールド名を特定
-			const rawDataFieldName = (Object.entries(effect.inputSchema) as [string, EffectField][]).find(
-				([_, field]) => field.isRawData,
-			)?.[0];
-
-			if (rawDataFieldName) {
-				const fieldInfo = effect.inputSchema[rawDataFieldName as keyof unknown];
-				const rawPrompt = `
+		if (rawDataFieldName) {
+			const fieldInfo = effect.inputSchema[rawDataFieldName as keyof unknown];
+			const rawPrompt = `
 ### Context
 Task: ${task.title}
 Executing Tool: ${effectName}
@@ -181,21 +184,20 @@ If this is code, provide the full source code.
 - Output ONLY the raw content.
 `.trim();
 
-				await savePromptLog("3-dispatch-raw", rawPrompt);
-				const rawContent = await llm.complete(rawPrompt);
+			await savePromptLog("3-dispatch-raw", rawPrompt);
+			const rawContent = await llm.complete(rawPrompt);
 
-				if (!rawContent) {
-					this.recordObservation({
-						success: false,
-						summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
-						error: "RAW_CONTENT_RETRIEVAL_FAILED",
-					});
-					return;
-				}
-
-				// 特定したフィールド名に生データを直接代入
-				finalArgs[rawDataFieldName] = rawContent;
+			if (!rawContent) {
+				this.recordObservation({
+					success: false,
+					summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
+					error: "RAW_CONTENT_RETRIEVAL_FAILED",
+				});
+				return;
 			}
+
+			// 特定したフィールド名に生データを直接代入
+			finalArgs[rawDataFieldName] = rawContent;
 		}
 
 		// --- [Execution] ---
