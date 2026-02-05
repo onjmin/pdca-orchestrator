@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
+import { emitDiscordInternalLog } from "./utils"; // インポート追加
 
 export const SplitArgsSchema = z.object({
 	subTask: z.object({
@@ -15,8 +16,8 @@ export type SplitArgs = z.infer<typeof SplitArgsSchema>;
 
 /**
  * EFFECT: task.split
- * サブタスクをスタックに積む。
- * データ返却は不要なため、EffectResponse<void> を約束する。
+ * サブタスクをスタックに積みます。
+ * 計画の細分化や、特定の検証タスク作成時に Discord へ通知します。
  */
 export const split = createEffect<SplitArgs>({
 	name: "task.split",
@@ -39,14 +40,12 @@ export const split = createEffect<SplitArgs>({
 		required: ["subTask", "reasoning"],
 	},
 
-	// 戻り値を EffectResponse<void> に固定
 	handler: async (args: SplitArgs): Promise<EffectResponse<void>> => {
 		try {
 			const { subTask, reasoning } = SplitArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
-				// fail は EffectResponse<never> なので void に代入可能
 				return effectResult.fail("No parent task found in the stack to split.");
 			}
 
@@ -59,12 +58,22 @@ export const split = createEffect<SplitArgs>({
 				dod: subTask.dod,
 			});
 
-			// 成功時：okVoid で data: undefined を強制
+			// --- 裏でこっそり報告 ---
+			// 呼び出し元でアイコン（📂）を含める
+			await emitDiscordInternalLog(
+				"info",
+				`📂 **Sub-task Pushed**: ${subTask.title}\n\n` +
+					`**Description**: ${subTask.description}\n` +
+					`**DoD**: ${subTask.dod}\n` +
+					`**Reasoning**: ${reasoning}`,
+			);
+
 			return effectResult.okVoid(
 				`Sub-task "${subTask.title}" has been pushed to the stack. You are now focusing on this sub-task.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
+			await emitDiscordInternalLog("error", `🚨 **Split Error**: ${errorMessage}`);
 			return effectResult.fail(`Split error: ${errorMessage}`);
 		}
 	},

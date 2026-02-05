@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
+import { emitDiscordInternalLog } from "./utils"; // 共通関数をインポート
 
 export const PlanArgsSchema = z.object({
 	strategy: z.string().describe("The step-by-step strategy to achieve the current task's DoD."),
@@ -11,8 +12,7 @@ export type PlanArgs = z.infer<typeof PlanArgsSchema>;
 
 /**
  * EFFECT: task.plan
- * 第2引数 R を省略（デフォルト void）にすることで、
- * 成功時に余計なデータ（data）を返すことを型レベルで禁止する。
+ * 戦略を策定し、内容を Discord に報告します。
  */
 export const plan = createEffect<PlanArgs>({
 	name: "task.plan",
@@ -32,7 +32,6 @@ export const plan = createEffect<PlanArgs>({
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
-				// fail() は EffectResponse<never> を返すので、void 型にも安全に適合
 				return effectResult.fail("No active task found in the stack to plan for.");
 			}
 
@@ -43,13 +42,19 @@ export const plan = createEffect<PlanArgs>({
 
 			console.log(`[TaskPlan] Strategy recorded for: ${currentTask.title}`);
 
-			// 成功時：okVoid を使用。
-			// これにより、data プロパティには undefined がセットされることが保証される。
+			// --- Discord 報告を追加 ---
+			// ステータスは info とし、これから実行する作戦を人間に伝える
+			await emitDiscordInternalLog(
+				"info",
+				`🧠 **New Strategy for**: ${currentTask.title}\n\n**Strategy**:\n${strategy}\n\n**Reasoning**:\n${reasoning}`,
+			);
+
 			return effectResult.okVoid(
 				`Strategy for "${currentTask.title}" has been updated. You can now proceed with implementation.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
+			await emitDiscordInternalLog("error", `🚨 **Plan Error**: ${errorMessage}`);
 			return effectResult.fail(`Planning error: ${errorMessage}`);
 		}
 	},

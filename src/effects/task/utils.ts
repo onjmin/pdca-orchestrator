@@ -2,13 +2,13 @@ import { taskStack } from "../../core/stack-manager";
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL ?? "";
 
-export type ReportStatus = "info" | "success" | "warning" | "error";
+export type LogLevel = "info" | "success" | "warning" | "error";
 
 /**
- * Discordへの報告ロジックのコア
- * ツール（Effect）以外からも呼び出せるように共通化
+ * AI(小人)には秘匿された状態で、現在のタスク状況を Discord へバックグラウンド送信する。
+ * メッセージの装飾（絵文字など）は呼び出し側で行う。
  */
-export async function sendDiscordReport(status: ReportStatus, message: string): Promise<void> {
+export async function emitDiscordInternalLog(level: LogLevel, message: string): Promise<void> {
 	if (!DISCORD_WEBHOOK_URL) return;
 
 	const progress = taskStack.progress;
@@ -16,23 +16,20 @@ export async function sendDiscordReport(status: ReportStatus, message: string): 
 	const filledCount = Math.floor(progress / (100 / barLength));
 	const progressBar = "▓".repeat(filledCount) + "░".repeat(barLength - filledCount);
 
-	const icons: Record<ReportStatus, string> = {
-		info: "📝",
-		success: "🏁",
-		warning: "⚠️",
-		error: "🚨",
-	};
-
-	const header = `${icons[status] || "🔔"} **[Task Report]** \`${progress}%\``;
+	const header = `**[${level.toUpperCase()}]** \`${progress}%\``;
 	const progressLine = `\`${progressBar}\` (Pop: ${taskStack.totalPoppedCount}, Depth: ${taskStack.length})`;
 
 	const payload = {
 		content: `${header}\n${progressLine}\n\n${message}`,
 	};
 
-	await fetch(DISCORD_WEBHOOK_URL, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(payload),
-	});
+	try {
+		await fetch(DISCORD_WEBHOOK_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(payload),
+		});
+	} catch (e) {
+		console.error("[DiscordInternalLog] Failed to send:", e);
+	}
 }

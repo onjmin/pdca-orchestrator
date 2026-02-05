@@ -4,24 +4,16 @@ import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
 import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
+import { create } from "../effects/file/create";
 import { grep } from "../effects/file/grep";
-import { list } from "../effects/file/list";
-import { move } from "../effects/file/move";
 import { patch } from "../effects/file/patch";
-import { read } from "../effects/file/read";
-import { remove } from "../effects/file/remove";
-import { search as fileSearch } from "../effects/file/search";
-import { tree } from "../effects/file/tree";
-import { write } from "../effects/file/write";
+import { readLines } from "../effects/file/read_lines";
 import { checkout } from "../effects/git/checkout";
 import { clone } from "../effects/git/clone";
 import { createPullRequest } from "../effects/github/create-pull-request";
-import { complain } from "../effects/master/complain";
-import { requestTool } from "../effects/master/request_tool";
 import { exec } from "../effects/shell/exec";
 import { check } from "../effects/task/check";
 import { plan } from "../effects/task/plan";
-import { report } from "../effects/task/report";
 import { split } from "../effects/task/split";
 import { wait } from "../effects/task/wait";
 import type { EffectDefinition } from "../effects/types";
@@ -32,9 +24,6 @@ import { wikipedia } from "../effects/web/wikipedia";
 // 利用可能なエフェクトのカタログ
 const effects = [
 	// 1. 認知：現在の状況・場所を知る（まずここを見ろ）
-	list,
-	tree,
-	read,
 	check,
 
 	// 2. 準備：作業の土台を整える（土俵に上がる）
@@ -47,13 +36,11 @@ const effects = [
 	theorize,
 
 	// 4. 実行：実際に手を動かす（メインの手足）
-	write,
-	patch,
-	remove, // ファイル操作はここにまとめる
-	move,
-	exec,
 	grep,
-	fileSearch,
+	readLines,
+	create,
+	patch,
+	exec,
 	wait,
 
 	// 5. 補完：外部知識を取り入れる
@@ -63,11 +50,6 @@ const effects = [
 
 	// 6. 報告：成果を提出し、完了させる
 	createPullRequest, // 最も重要な「仕事の出口」
-	report, // 内部的な完了報告
-
-	// 7. レスキュー：人間への相談
-	complain,
-	requestTool,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(

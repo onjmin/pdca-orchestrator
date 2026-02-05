@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
+import { emitDiscordInternalLog } from "./utils";
 
 export const CheckArgsSchema = z.object({
 	observations: z.string().describe("Current observation of the environment or task status."),
@@ -47,14 +48,23 @@ export const check = createEffect<CheckArgs, CheckData>({
 			console.log(`[TaskCheck] Reason: ${reason}`);
 
 			if (isPassed) {
+				const title = currentTask.title;
 				taskStack.pop();
-				return effectResult.ok(
-					`Task "${currentTask.title}" COMPLETED. Environment is now stable.`,
-					{ status: "completed" },
-				);
+
+				// 合格時の報告
+				await emitDiscordInternalLog("success", `✅ Task Completed: ${title}\nReason: ${reason}`);
+
+				return effectResult.ok(`Task "${title}" COMPLETED. Environment is now stable.`, {
+					status: "completed",
+				});
 			}
 
-			// 失敗時：小人に「次に何をすべきか」を考えさせるフィードバックを返す
+			// --- 失敗（継続）時も報告のみ差し込む ---
+			await emitDiscordInternalLog(
+				"warning",
+				`⚠️ Task Continuing: ${currentTask.title}\nReason: ${reason}`,
+			);
+
 			return effectResult.ok(
 				`STILL IN PROGRESS: ${reason}. \n` +
 					`Hint: Before calling check again, ALWAYS use 'file.read_lines' to verify your changes actually look correct. \n` +
@@ -63,6 +73,7 @@ export const check = createEffect<CheckArgs, CheckData>({
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
+			await emitDiscordInternalLog("error", `🚨 **Check Error**: ${errorMessage}`);
 			return effectResult.fail(`Check execution error: ${errorMessage}`);
 		}
 	},
