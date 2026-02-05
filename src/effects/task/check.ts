@@ -23,7 +23,7 @@ export interface CheckData {
 export const check = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
 	description:
-		"Declare task completion. ONLY use this when you have EVIDENCE that the change is correct (e.g., after verifying with 'file.read_lines'). DO NOT call this immediately after every file modification.",
+		"Evaluate the current task status against the Definition of Done (DoD). Use this to declare the task as 'passed' (completed) or 'failed' (needs more work/retry). Provide a clear reasoning based on your observations.",
 	inputSchema: {
 		type: "object",
 		properties: {
