@@ -10,7 +10,26 @@ type AnyEffect = EffectDefinition<unknown, unknown>;
 export const orchestrator = {
 	// 最新のEffect execution結果を保持するバッファ
 	// 識別子付き共用体を尊重し、初期値は null
-	lastEffectResult: null as EffectResponse<unknown> | null,
+	_lastResult: null as EffectResponse<unknown> | null,
+
+	/**
+	 * 最新の実行結果をセットする (setter)
+	 */
+	set lastEffectResult(result: EffectResponse<unknown> | null) {
+		this._lastResult = result;
+	},
+
+	/**
+	 * プロンプト用に成形された観測結果（文字列）を取得する (getter)
+	 */
+	get lastEffectResult(): string {
+		if (!this._lastResult) return "No previous action.";
+
+		const raw = JSON.stringify(this._lastResult, null, 2);
+		const limit = 2000;
+
+		return raw.length > limit ? `${raw.substring(0, limit)}... (truncated)` : raw;
+	},
 
 	/**
 	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
@@ -143,6 +162,10 @@ DoD: ${task.dod}
 ### Observation from Previous Step
 ${JSON.stringify(this.lastEffectResult || "No previous action.", null, 2)}
 
+### Notice
+Some fields (e.g., large data content) are omitted from this schema and will be requested in the FOLLOW-UP step. 
+Do NOT try to include them here.
+
 ### Required JSON Schema
 ${JSON.stringify(inputSchemaOmitted, null, 2)}
 
@@ -173,6 +196,7 @@ Task: ${task.title}
 Executing Tool: ${effectName}
 Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
 Other Arguments: ${JSON.stringify(args)}
+Latest Observation: ${observation}
 
 ### Instruction
 Provide the ACTUAL content for the field "${rawDataFieldName}".
