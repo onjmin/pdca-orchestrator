@@ -107,15 +107,15 @@ Respond with only the effect name.
 	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
 
-		// 今回のスキーマにisRawDataを持つフィールドが存在するかどうかのフラグ
-		const hasRawDataField = false;
-
-		// isRawData: true のフィールドを除外したスキーマを生成（Object.entries の型崩れを防ぐためアサーションを使用）
+		// RawData フィールドの存在確認と、軽量版スキーマの生成
+		let hasRawDataField = false;
 		const inputSchemaOmitted = (
 			Object.entries(effect.inputSchema) as [string, EffectField][]
 		).reduce(
 			(acc, [key, field]) => {
-				if (!field.isRawData) {
+				if (field.isRawData) {
+					hasRawDataField = true;
+				} else {
 					acc[key] = field;
 				}
 				return acc;
@@ -142,7 +142,6 @@ Generate JSON arguments for the fields defined in the schema.
 Respond with ONLY the JSON object.
 `.trim();
 
-		// 選んだツールの引数（__DATA__含み）を考えるフェーズ
 		await savePromptLog("2-dispatch-args", argPrompt);
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
 		if (jsonError || !args || typeof args !== "object") {
@@ -158,16 +157,23 @@ Respond with ONLY the JSON object.
 		const finalArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
 
 		if (hasRawDataField) {
-			// ここで背景情報をしっかり渡す
-			const rawPrompt = `
+			// isRawData: true に設定されている唯一のフィールド名を特定
+			const rawDataFieldName = (Object.entries(effect.inputSchema) as [string, EffectField][]).find(
+				([_, field]) => field.isRawData,
+			)?.[0];
+
+			if (rawDataFieldName) {
+				const fieldInfo = effect.inputSchema[rawDataFieldName as keyof unknown];
+				const rawPrompt = `
 ### Context
 Task: ${task.title}
 Executing Tool: ${effectName}
-Partial Arguments: ${JSON.stringify(args)}
+Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
+Other Arguments: ${JSON.stringify(args)}
 
 ### Instruction
-Provide the ACTUAL content to replace "__DATA__". 
-For example, if this is a file write, provide the source code now.
+Provide the ACTUAL content for the field "${rawDataFieldName}".
+If this is code, provide the full source code.
 
 ### Rules
 - NO Markdown code blocks.
@@ -175,41 +181,30 @@ For example, if this is a file write, provide the source code now.
 - Output ONLY the raw content.
 `.trim();
 
-			// __DATA__ に流し込む中身（コード等）を考えるフェーズ
-			await savePromptLog("3-dispatch-raw", rawPrompt);
-			const rawContent = await llm.complete(rawPrompt);
+				await savePromptLog("3-dispatch-raw", rawPrompt);
+				const rawContent = await llm.complete(rawPrompt);
 
-			// 追加：生テキストが取得できなかった場合のガード
-			if (!rawContent) {
-				console.warn(`[Skip] Failed to get raw content for ${effectName}`);
-				this.recordObservation({
-					success: false,
-					summary: `Failed to retrieve the raw content for field marked as __DATA__.`,
-					error: "RAW_CONTENT_RETRIEVAL_FAILED",
-				});
-				return;
-			}
-
-			Object.keys(finalArgs).forEach((key) => {
-				// string型であることを確認しつつ、前後の空白を除去して判定
-				if (
-					typeof finalArgs[key] === "string" &&
-					(finalArgs[key] as string).trim() === "__DATA__"
-				) {
-					finalArgs[key] = rawContent;
+				if (!rawContent) {
+					this.recordObservation({
+						success: false,
+						summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
+						error: "RAW_CONTENT_RETRIEVAL_FAILED",
+					});
+					return;
 				}
-			});
+
+				// 特定したフィールド名に生データを直接代入
+				finalArgs[rawDataFieldName] = rawContent;
+			}
 		}
 
 		// --- [Execution] ---
 		try {
 			console.log(`[Exec] Running ${effectName}...`);
-			// handler(unknown) を呼び出し。内部の Zod がこの unknown をパースして守る
 			const result = await effect.handler(finalArgs);
 			this.recordObservation(result);
 			return result;
 		} catch (e: unknown) {
-			// handlerが予期せぬエラーで落ちた場合もObservationとして記録
 			const errorMessage = e instanceof Error ? e.message : String(e);
 			const failResult: EffectResponse<never> = {
 				success: false,
