@@ -6,6 +6,8 @@ import { taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
 import { create } from "../effects/file/create";
 import { grep } from "../effects/file/grep";
+import { insertAt } from "../effects/file/insert_at";
+import { listTree } from "../effects/file/list_tree";
 import { patch } from "../effects/file/patch";
 import { readLines } from "../effects/file/read_lines";
 import { checkout } from "../effects/git/checkout";
@@ -24,6 +26,7 @@ import { wikipedia } from "../effects/web/wikipedia";
 // 利用可能なエフェクトのカタログ
 const effects = [
 	// 1. 認知：現在の状況・場所を知る（まずここを見ろ）
+	listTree,
 	check,
 
 	// 2. 準備：作業の土台を整える（土俵に上がる）
@@ -39,6 +42,7 @@ const effects = [
 	grep,
 	readLines,
 	create,
+	insertAt,
 	patch,
 	exec,
 	wait,

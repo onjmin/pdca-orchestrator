@@ -3,7 +3,6 @@ import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const WebWikipediaArgsSchema = z.object({
 	query: z.string().describe("The topic or keyword to look up (e.g., 'Category theory')."),
-	language: z.string().describe("The language code (e.g., 'ja', 'en')."),
 });
 
 export type WebWikipediaArgs = z.infer<typeof WebWikipediaArgsSchema>;
@@ -26,18 +25,14 @@ export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
 			type: "string",
 			description: "The topic or keyword to search for.",
 		},
-		language: {
-			type: "string",
-			description: "ISO language code (default: 'ja').",
-		},
 	},
 
 	handler: async (args: WebWikipediaArgs): Promise<EffectResponse<WebWikipediaData>> => {
 		try {
-			const { query, language } = WebWikipediaArgsSchema.parse(args);
+			const { query } = WebWikipediaArgsSchema.parse(args);
 
 			// Wikipedia REST API (Summary endpoint)
-			const endpoint = `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
+			const endpoint = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`;
 
 			const response = await fetch(endpoint, {
 				headers: {
@@ -46,7 +41,7 @@ export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
 			});
 
 			if (response.status === 404) {
-				return effectResult.fail(`Topic "${query}" not found on Wikipedia (${language}).`);
+				return effectResult.fail(`Topic "${query}" not found on Wikipedia.`);
 			}
 
 			if (!response.ok) {

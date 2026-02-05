@@ -4,62 +4,71 @@ import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const FilePatchArgsSchema = z.object({
-	path: z.string().describe("The path to the file to be patched."),
-	search: z
-		.string()
-		.describe("The exact string to be replaced. Must match exactly including indentation."),
-	replace: z.string().describe("The new string to replace the 'search' string with."),
+	path: z.string().describe("Path of the file to patch."),
+	startLine: z.number().min(1).describe("The starting line number to replace (inclusive)."),
+	endLine: z.number().min(1).describe("The ending line number to replace (inclusive)."),
+	insertText: z.string().describe("The new content to insert into the specified line range."),
 });
 
 export type FilePatchArgs = z.infer<typeof FilePatchArgsSchema>;
 
 /**
  * EFFECT: file.patch
- * ファイル内の特定の文字列を新しい内容で置換します。
+ * 指定された行範囲 (startLine-endLine) を新しい内容で置換します。
  */
 export const patch = createEffect<FilePatchArgs, { path: string }>({
 	name: "file.patch",
 	description:
-		"Replace a specific string in a file with new content. Ensure the 'search' string matches the target exactly.",
+		"Replace a specific line range in a file with new content. Use read_lines first to identify line numbers.",
 	inputSchema: {
 		path: {
 			type: "string",
 			description: "Target file path.",
 		},
-		search: {
-			type: "string",
-			description: "Exact string to be replaced (including indentation).",
-			isRawData: true, // STEP 3 で精密に取得
+		startLine: {
+			type: "number",
+			description: "Start line number (1-indexed).",
 		},
-		replace: {
+		endLine: {
+			type: "number",
+			description: "End line number (1-indexed).",
+		},
+		insertText: {
 			type: "string",
-			description: "New content to insert.",
-			isRawData: true, // STEP 3 で精密に取得
+			description: "New content (can be multiple lines).",
+			isRawData: true,
 		},
 	},
 
 	handler: async (args: FilePatchArgs): Promise<EffectResponse<{ path: string }>> => {
 		try {
-			const { path, search, replace } = FilePatchArgsSchema.parse(args);
+			const { path, startLine, endLine, insertText } = FilePatchArgsSchema.parse(args);
 			const absolutePath = resolve(process.cwd(), path);
 
-			// ファイルの存在確認と読み込み
-			const content = await fs.readFile(absolutePath, "utf-8");
-
-			// 置換対象が含まれているかチェック
-			if (!content.includes(search)) {
-				return effectResult.fail(
-					`The exact search string was not found in ${path}. ` +
-						`Indentation and whitespace must match exactly.`,
-				);
+			if (startLine > endLine) {
+				return effectResult.fail(`Invalid range: startLine (${startLine}) > endLine (${endLine})`);
 			}
 
-			// 最初に見つかった箇所を置換
-			const newContent = content.replace(search, replace);
+			const content = await fs.readFile(absolutePath, "utf-8");
+			const lines = content.split(/\r?\n/);
 
+			// バリデーション: 指定された行がファイル内に存在するか
+			if (startLine > lines.length) {
+				return effectResult.fail(`Start line ${startLine} exceeds file length (${lines.length}).`);
+			}
+
+			// 行の置換処理
+			// splice(開始インデックス, 削除する要素数, 追加する要素)
+			// 1-indexed を 0-indexed に調整
+			const deleteCount = endLine - startLine + 1;
+			lines.splice(startLine - 1, deleteCount, insertText);
+
+			const newContent = lines.join("\n");
 			await fs.writeFile(absolutePath, newContent, "utf-8");
 
-			return effectResult.ok(`Successfully patched ${path}.`, { path });
+			return effectResult.ok(`Successfully patched ${path} (L${startLine}-L${endLine} replaced).`, {
+				path,
+			});
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			return effectResult.fail(`File patch failed: ${errorMessage}`);

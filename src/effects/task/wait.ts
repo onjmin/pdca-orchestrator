@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
+import { emitDiscordInternalLog } from "./utils";
 
 export const TaskWaitArgsSchema = z.object({
 	ms: z.number().min(100).max(60000).describe("Duration to wait in milliseconds."),
@@ -10,7 +11,7 @@ export type TaskWaitArgs = z.infer<typeof TaskWaitArgsSchema>;
 
 /**
  * EFFECT: task.wait
- * 指定した時間だけ待機します。
+ * 指定した時間だけ待機し、Discord にその旨を報告します。
  */
 export const wait = createEffect<TaskWaitArgs, void>({
 	name: "task.wait",
@@ -31,12 +32,16 @@ export const wait = createEffect<TaskWaitArgs, void>({
 		try {
 			const { ms, reason } = TaskWaitArgsSchema.parse(args);
 
+			// 待機開始を Discord に通知
 			console.log(`[TaskWait] Waiting for ${ms}ms. Reason: ${reason}`);
+			await emitDiscordInternalLog("info", `⏳ **Waiting** for ${ms}ms...\nReason: ${reason}`);
+
 			await new Promise((resolve) => setTimeout(resolve, ms));
 
 			return effectResult.okVoid(`Waiting completed (${ms}ms). Reason: ${reason}`);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
+			await emitDiscordInternalLog("error", `🚨 **Wait Error**: ${errorMessage}`);
 			return effectResult.fail(`Wait error: ${errorMessage}`);
 		}
 	},
