@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { EffectDefinition, EffectResponse } from "../effects/types";
+import type { EffectDefinition, EffectField, EffectResponse } from "../effects/types";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
 
@@ -106,18 +106,22 @@ Respond with only the effect name.
 		task: Task,
 	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
-		const schemaForLlm = structuredClone(effect.inputSchema);
-		let hasRawDataField = false;
 
-		const props = schemaForLlm.properties ?? {};
+		// 今回のスキーマにisRawDataを持つフィールドが存在するかどうかのフラグ
+		const hasRawDataField = false;
 
-		const omittedPops = structuredClone(props);
-		Object.keys(omittedPops).forEach((key) => {
-			if (omittedPops[key]?.isRawData) {
-				hasRawDataField = true;
-				delete omittedPops[key];
-			}
-		});
+		// isRawData: true のフィールドを除外したスキーマを生成（Object.entries の型崩れを防ぐためアサーションを使用）
+		const inputSchemaOmitted = (
+			Object.entries(effect.inputSchema) as [string, EffectField][]
+		).reduce(
+			(acc, [key, field]) => {
+				if (!field.isRawData) {
+					acc[key] = field;
+				}
+				return acc;
+			},
+			{} as Record<string, EffectField>,
+		);
 
 		const argPrompt = `
 You are using the tool: "${effectName}"
@@ -131,7 +135,7 @@ DoD: ${task.dod}
 ${JSON.stringify(this.lastEffectResult || "No previous action.", null, 2)}
 
 ### Required JSON Schema
-${JSON.stringify(schemaForLlm, null, 2)}
+${JSON.stringify(inputSchemaOmitted, null, 2)}
 
 ### Instruction
 Generate JSON arguments for the fields defined in the schema.
