@@ -17,7 +17,6 @@ export interface WebSearchData {
 	results: SearchResult[];
 }
 
-// Tavily APIのレスポンス構造を定義
 interface TavilyRawResult {
 	url: string;
 	content: string;
@@ -31,20 +30,15 @@ interface TavilyResponse {
 
 /**
  * EFFECT: web.search
- * Tavily API を直接使用して検索を実行します。
- * 高コストなため、外部知識が不可欠な場合のみ使用するよう小人に制限をかけます。
+ * 外部知識が必要な場合にインターネット検索を実行します。
  */
 export const search = createEffect<WebSearchArgs, WebSearchData>({
 	name: "web.search",
-	description:
-		"Search the web for external knowledge. This is HIGH COST, so think twice and use only when necessary (e.g., latest API docs).",
+	description: "Search the web for external knowledge or latest documentation.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			query: {
-				type: "string",
-				description: "The specific search query.",
-			},
+		query: {
+			type: "string",
+			description: "The specific search query.",
 		},
 	},
 
@@ -54,10 +48,10 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 			const apiKey = process.env.TAVILY_API_KEY;
 
 			if (!apiKey) {
-				return effectResult.fail("TAVILY_API_KEY is not set in environment variables.");
+				return effectResult.fail("TAVILY_API_KEY is not set.");
 			}
 
-			console.log(`[Tavily] High-cost search for: "${query}"...`);
+			console.log(`[Tavily] Searching: "${query}"...`);
 
 			const response = await fetch("https://api.tavily.com/search", {
 				method: "POST",
@@ -74,7 +68,6 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 				throw new Error(`Tavily API error: ${response.statusText}`);
 			}
 
-			// 型安全なパース
 			const data = (await response.json()) as TavilyResponse;
 
 			if (!data.results || !Array.isArray(data.results)) {
@@ -87,7 +80,7 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 				title: r.title,
 			}));
 
-			return effectResult.ok(`Search completed. Used high-cost API for "${query}".`, { results });
+			return effectResult.ok(`Search completed for "${query}".`, { results });
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
 			return effectResult.fail(`Web search failed: ${msg}`);

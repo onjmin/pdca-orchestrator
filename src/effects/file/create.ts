@@ -21,17 +21,14 @@ export const create = createEffect<FileCreateArgs, void>({
 	description:
 		"Create a file with the specified content. If the file already exists, it will be completely overwritten. Parent directories are created automatically.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			path: {
-				type: "string",
-				description: "Target file path.",
-			},
-			content: {
-				type: "string",
-				description: "The complete raw content to be written to the file.",
-				isRawData: true, // オーケストレーターがこのフラグを見て、別ステップで内容を生成・注入する
-			},
+		path: {
+			type: "string",
+			description: "Target file path.",
+		},
+		content: {
+			type: "string",
+			description: "The complete raw content to be written to the file.",
+			isRawData: true,
 		},
 	},
 

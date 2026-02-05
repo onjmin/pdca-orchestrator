@@ -106,15 +106,16 @@ Respond with only the effect name.
 		task: Task,
 	): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
-		const schemaForLlm = JSON.parse(JSON.stringify(effect.inputSchema));
+		const schemaForLlm = structuredClone(effect.inputSchema);
 		let hasRawDataField = false;
 
-		const props = schemaForLlm.properties || {};
-		Object.keys(props).forEach((key) => {
-			// description やフラグから __DATA__ フィールドの有無を確認
-			if (props[key].description?.includes("__DATA__")) {
+		const props = schemaForLlm.properties ?? {};
+
+		const omittedPops = structuredClone(props);
+		Object.keys(omittedPops).forEach((key) => {
+			if (omittedPops[key]?.isRawData) {
 				hasRawDataField = true;
-				delete props[key];
+				delete omittedPops[key];
 			}
 		});
 

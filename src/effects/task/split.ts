@@ -1,14 +1,13 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
-import { emitDiscordInternalLog } from "./utils"; // インポート追加
+import { emitDiscordInternalLog } from "./utils";
 
+// フラットなスキーマ定義
 export const SplitArgsSchema = z.object({
-	subTask: z.object({
-		title: z.string().describe("Clear and concise title for the sub-task."),
-		description: z.string().describe("Detailed explanation of what needs to be done."),
-		dod: z.string().describe("Specific Definition of Done for this sub-task."),
-	}),
+	title: z.string().describe("Clear and concise title for the sub-task."),
+	description: z.string().describe("Detailed explanation of what needs to be done."),
+	dod: z.string().describe("Specific Definition of Done for this sub-task."),
 	reasoning: z.string().describe("Logical reason why this sub-task is the necessary next step."),
 });
 
@@ -17,30 +16,34 @@ export type SplitArgs = z.infer<typeof SplitArgsSchema>;
 /**
  * EFFECT: task.split
  * サブタスクをスタックに積みます。
- * 計画の細分化や、特定の検証タスク作成時に Discord へ通知します。
  */
-export const split = createEffect<SplitArgs>({
+export const split = createEffect<SplitArgs, void>({
 	name: "task.split",
 	description:
-		"Create a sub-task. Use this to break down implementation OR to create a specific 'Verification Task' to prove a DoD item.",
+		"Create a sub-task to break down implementation or to create a specific verification task.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			subTask: {
-				type: "object",
-				properties: {
-					title: { type: "string" },
-					description: { type: "string" },
-					dod: { type: "string" },
-				},
-			},
-			reasoning: { type: "string" },
+		title: {
+			type: "string",
+			description: "Clear and concise title for the sub-task.",
+		},
+		description: {
+			type: "string",
+			description: "Detailed explanation of what needs to be done.",
+		},
+		dod: {
+			type: "string",
+			description: "Specific Definition of Done for this sub-task.",
+		},
+		reasoning: {
+			type: "string",
+			description: "Logical reason why this sub-task is the necessary next step.",
 		},
 	},
 
 	handler: async (args: SplitArgs): Promise<EffectResponse<void>> => {
 		try {
-			const { subTask, reasoning } = SplitArgsSchema.parse(args);
+			// Zodでバリデーション
+			const { title, description, dod, reasoning } = SplitArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
@@ -48,26 +51,26 @@ export const split = createEffect<SplitArgs>({
 			}
 
 			console.log(`[TaskSplit] Reasoning: ${reasoning}`);
-			console.log(`[TaskSplit] New Sub-task: ${subTask.title}`);
+			console.log(`[TaskSplit] New Sub-task: ${title}`);
 
+			// スタックに積む
 			taskStack.push({
-				title: subTask.title,
-				description: subTask.description,
-				dod: subTask.dod,
+				title: title,
+				description: description,
+				dod: dod,
 			});
 
-			// --- 裏でこっそり報告 ---
-			// 呼び出し元でアイコン（📂）を含める
+			// Discord報告
 			await emitDiscordInternalLog(
 				"info",
-				`📂 **Sub-task Pushed**: ${subTask.title}\n\n` +
-					`**Description**: ${subTask.description}\n` +
-					`**DoD**: ${subTask.dod}\n` +
+				`📂 **Sub-task Pushed**: ${title}\n\n` +
+					`**Description**: ${description}\n` +
+					`**DoD**: ${dod}\n` +
 					`**Reasoning**: ${reasoning}`,
 			);
 
 			return effectResult.okVoid(
-				`Sub-task "${subTask.title}" has been pushed to the stack. You are now focusing on this sub-task.`,
+				`Sub-task "${title}" has been pushed to the stack. Focus on this sub-task now.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);

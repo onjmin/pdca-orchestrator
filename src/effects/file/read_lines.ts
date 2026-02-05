@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 import { getSafePath } from "./utils";
 
-// 1回のコールで許容する最大行数。プロンプトのコンテキスト維持のため100行に設定。
+// 1回のコールで許容する最大行数
 const MAX_READ_LIMIT = 100;
 
 export const FileReadLinesArgsSchema = z.object({
@@ -22,19 +22,23 @@ export interface FileReadLinesData {
 
 /**
  * EFFECT: file.read_lines
- * sedを使用して特定の行範囲を読み取ります。
- * 全文読み込みを避け、AIのコンテキスト消費を抑えながら精査を行うためのツールです。
+ * 特定の行範囲を行番号付きで読み取ります。
  */
 export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 	name: "file.read_lines",
-	description:
-		"Read specific lines of a file with line numbers. Essential for examining code context before planning and verifying results after modifications.",
+	description: "Read specific lines of a file with line numbers to examine code context.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			path: { type: "string" },
-			startLine: { type: "number" },
-			endLine: { type: "number" },
+		path: {
+			type: "string",
+			description: "Target file path.",
+		},
+		startLine: {
+			type: "number",
+			description: "Start line number (1-indexed).",
+		},
+		endLine: {
+			type: "number",
+			description: `End line number (max ${MAX_READ_LIMIT} lines from start).`,
 		},
 	},
 
@@ -43,20 +47,17 @@ export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 			const { path: filePath, startLine, endLine } = FileReadLinesArgsSchema.parse(args);
 			const safePath = getSafePath(filePath);
 
-			// 1. 範囲のバリデーション
 			if (startLine > endLine) {
 				return effectResult.fail(
 					`Invalid range: startLine (${startLine}) is greater than endLine (${endLine}).`,
 				);
 			}
 
-			// 2. 読み取り範囲の強制制限
 			const requestedCount = endLine - startLine + 1;
 			const isTruncated = requestedCount > MAX_READ_LIMIT;
 			const effectiveEndLine = isTruncated ? startLine + MAX_READ_LIMIT - 1 : endLine;
 
-			// 3. cat -n で行番号を付与し、sed で範囲抽出
-			// AIが行番号を正確に把握できるよう cat -n を併用
+			// cat -n で行番号を付与し、sed で抽出
 			const command = `cat -n "${safePath}" | sed -n '${startLine},${effectiveEndLine}p'`;
 
 			const stdout = execSync(command, {
@@ -67,10 +68,9 @@ export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 
 			const lines = stdout.split("\n").filter((line) => line.length > 0);
 
-			// 4. 結果のサマリー作成
 			const summary = isTruncated
-				? `Read ${lines.length} lines from ${filePath} (L${startLine}-L${effectiveEndLine}). [NOTICE: Requested range was ${requestedCount} lines, but truncated to ${MAX_READ_LIMIT} for context safety.]`
-				: `Read ${lines.length} lines from ${filePath} (L${startLine}-L${effectiveEndLine}).`;
+				? `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}). [Truncated from ${requestedCount} lines]`
+				: `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}).`;
 
 			return effectResult.ok(summary, {
 				lines,

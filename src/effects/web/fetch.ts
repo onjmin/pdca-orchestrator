@@ -2,9 +2,12 @@ import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const WebFetchArgsSchema = z.object({
-	url: z.string().url(),
-	method: z.enum(["GET", "POST"]).default("GET"),
-	headers: z.record(z.string(), z.string()).optional(),
+	url: z.string().url().describe("Target URL to fetch content from."),
+	method: z.enum(["GET", "POST"]).describe("HTTP method (GET or POST)."),
+	headers: z
+		.record(z.string(), z.string())
+		.optional()
+		.describe("Optional HTTP headers as a key-value object."),
 });
 
 export type WebFetchArgs = z.infer<typeof WebFetchArgsSchema>;
@@ -16,28 +19,45 @@ export interface WebFetchData {
 
 /**
  * EFFECT: web.fetch
- * 指定したURLからコンテンツを取得する (curl相当)。
+ * 指定したURLからコンテンツを取得します。
  */
 export const fetchContent = createEffect<WebFetchArgs, WebFetchData>({
 	name: "web.fetch",
 	description:
-		"Fetch the raw content from a specific URL. Useful for reading documentation or downloading raw files.",
+		"Fetch raw content from a URL. Useful for reading documentation or raw source files.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			url: { type: "string" },
-			method: { type: "string", enum: ["GET", "POST"], default: "GET" },
-			headers: { type: "object", additionalProperties: { type: "string" } },
+		url: {
+			type: "string",
+			description: "Target URL (e.g., https://example.com/doc.md)",
+		},
+		method: {
+			type: "string",
+			description: "HTTP method: GET or POST.",
+		},
+		headers: {
+			type: "string",
+			description: 'Optional JSON string of headers (e.g., \'{"Authorization": "Bearer..."}\').',
+			// ヘッダーに認証情報などが含まれる可能性があるため、STEP 3で安全に取得
+			isRawData: true,
 		},
 	},
 
 	handler: async (args: WebFetchArgs): Promise<EffectResponse<WebFetchData>> => {
 		try {
-			const { url, method, headers } = WebFetchArgsSchema.parse(args);
+			// headers が string で送られてきた場合のパース処理（Orchestrator側でパース済みなら不要だが念のため）
+			const rawArgs = args as any;
+			if (typeof rawArgs.headers === "string") {
+				try {
+					rawArgs.headers = JSON.parse(rawArgs.headers);
+				} catch {
+					rawArgs.headers = undefined;
+				}
+			}
 
-			// 巨大なバイナリ等を避けるための簡単なタイムアウトと設定
+			const { url, method, headers } = WebFetchArgsSchema.parse(rawArgs);
+
 			const controller = new AbortController();
-			const timeout = setTimeout(() => controller.abort(), 10000); // 10秒
+			const timeout = setTimeout(() => controller.abort(), 10000);
 
 			const response = await fetch(url, {
 				method,
@@ -47,7 +67,6 @@ export const fetchContent = createEffect<WebFetchArgs, WebFetchData>({
 
 			clearTimeout(timeout);
 
-			// コンテンツタイプのチェック（バイナリは避ける）
 			const contentType = response.headers.get("content-type") ?? "";
 			if (
 				contentType.includes("image/") ||
@@ -59,11 +78,10 @@ export const fetchContent = createEffect<WebFetchArgs, WebFetchData>({
 
 			const content = await response.text();
 
-			// LLMのコンテキスト破壊を防ぐため、10万文字程度で切り捨て
 			const MAX_LENGTH = 100000;
 			const truncatedContent =
 				content.length > MAX_LENGTH
-					? content.substring(0, MAX_LENGTH) + "\n... (content truncated)"
+					? `${content.substring(0, MAX_LENGTH)}\n... (content truncated)`
 					: content;
 
 			return effectResult.ok(`Successfully fetched from ${url} (Status: ${response.status})`, {

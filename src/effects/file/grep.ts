@@ -4,49 +4,52 @@ import { createEffect, type EffectResponse, effectResult } from "../types";
 import { getSafePath } from "./utils";
 
 export const FileGrepArgsSchema = z.object({
-	path: z.string().describe("Path to search in."),
-	pattern_placeholder: z
-		.string()
-		.describe("MANDATORY: Write ONLY '__DATA__' here. The actual pattern will be injected."),
-	recursive: z.boolean().default(true).describe("Search recursively through directories."),
+	path: z.string().describe("Path to search in (file or directory)."),
+	pattern: z.string().describe("The search pattern or string."),
+	recursive: z.boolean().describe("Search recursively through directories."),
 });
 
 export type FileGrepArgs = z.infer<typeof FileGrepArgsSchema>;
 
-/**
- * レスポンスのデータ構造
- */
 export interface FileGrepData {
 	results: string[];
 }
 
 /**
  * EFFECT: file.grep
- * システムの grep コマンドを使用してパターンを高速検索する。
- * ヒットなし(status 1)の場合も空配列を返すのが正常系。
+ * システムの grep コマンドを使用してパターンを高速検索します。
  */
 export const grep = createEffect<FileGrepArgs, FileGrepData>({
 	name: "file.grep",
 	description:
-		"Search for patterns within files or directories. Provides line numbers and surrounding context (-C 3) to help locate code quickly. Use this to identify targets for inspection or modification.",
+		"Search for patterns within files. Provides line numbers and context to help locate code.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			path: { type: "string" },
-			pattern_placeholder: { type: "string" },
-			recursive: { type: "boolean" },
+		path: {
+			type: "string",
+			description: "Target path to search.",
+		},
+		pattern: {
+			type: "string",
+			description: "The pattern to search for.",
+			isRawData: true, // 特殊文字やクォートが含まれる可能性があるため STEP 3 で注入
+		},
+		recursive: {
+			type: "boolean",
+			description: "Enable recursive search.",
 		},
 	},
 
 	handler: async (args: FileGrepArgs): Promise<EffectResponse<FileGrepData>> => {
 		try {
-			const { path: searchPath, pattern_placeholder, recursive } = FileGrepArgsSchema.parse(args);
+			const { path: searchPath, pattern, recursive } = FileGrepArgsSchema.parse(args);
 			const safePath = getSafePath(searchPath);
 
-			// -C 3 を追加して、前後の3行ずつ（計7行分）を表示させる
+			// -C 3 で前後の文脈を含める
 			const flags = recursive ? "-rnIEC 3" : "-nIEC 3";
-			const escapedPattern = pattern_placeholder.replace(/"/g, '\\"');
-			const command = `grep ${flags} --no-group-separator "${escapedPattern}" "${safePath}"`;
+
+			// シェルのメタ文字を考慮してシングルクォートで囲む（簡易版）
+			const escapedPattern = pattern.replace(/'/g, "'\\''");
+			const command = `grep ${flags} --no-group-separator '${escapedPattern}' "${safePath}"`;
 
 			const stdout = execSync(command, {
 				encoding: "utf8",
@@ -56,18 +59,16 @@ export const grep = createEffect<FileGrepArgs, FileGrepData>({
 
 			const results = stdout.split("\n").filter((line) => line.length > 0);
 
-			// 成功時: results を含む FileGrepData を返す
 			return effectResult.ok(`Found ${results.length} matches.`, {
-				results: results.slice(0, 30), // AIが混乱しないよう上限を設定
+				results: results.slice(0, 30), // トークン節約のため上限を設定
 			});
 		} catch (err: unknown) {
-			// grep 特有の挙動: ヒットなしは exit code 1
+			// grep: 1 は「ヒットなし」を意味する正常な終了コード
 			if (err && typeof err === "object" && (err as { status?: number }).status === 1) {
 				return effectResult.ok("No matches found.", { results: [] });
 			}
 
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			// 失敗時: never 型により自動適合
 			return effectResult.fail(`Grep execution error: ${errorMessage}`);
 		}
 	},

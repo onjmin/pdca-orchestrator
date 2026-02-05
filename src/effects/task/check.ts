@@ -18,18 +18,23 @@ export interface CheckData {
 /**
  * EFFECT: task.check
  * タスクの完了を判定します。
- * 小人が検証ループに陥らないよう、説明文に強い制約を追加。
  */
 export const check = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
 	description:
-		"Evaluate the current task status against the Definition of Done (DoD). Use this to declare the task as 'passed' (completed) or 'failed' (needs more work/retry). Provide a clear reasoning based on your observations.",
+		"Evaluate the current task status against the Definition of Done (DoD). Use this to declare the task as 'passed' (completed) or 'failed' (needs more work).",
 	inputSchema: {
-		type: "object",
-		properties: {
-			observations: { type: "string" },
-			isPassed: { type: "boolean" },
-			reason: { type: "string" },
+		observations: {
+			type: "string",
+			description: "Current observation of the environment or task status.",
+		},
+		isPassed: {
+			type: "boolean",
+			description: "True if the task meets the DoD.",
+		},
+		reason: {
+			type: "string",
+			description: "Reasoning for this judgment based on evidence.",
 		},
 	},
 
@@ -50,7 +55,6 @@ export const check = createEffect<CheckArgs, CheckData>({
 				const title = currentTask.title;
 				taskStack.pop();
 
-				// 合格時の報告
 				await emitDiscordInternalLog("success", `✅ Task Completed: ${title}\nReason: ${reason}`);
 
 				return effectResult.ok(`Task "${title}" COMPLETED. Environment is now stable.`, {
@@ -58,18 +62,13 @@ export const check = createEffect<CheckArgs, CheckData>({
 				});
 			}
 
-			// --- 失敗（継続）時も報告のみ差し込む ---
 			await emitDiscordInternalLog(
 				"warning",
 				`⚠️ Task Continuing: ${currentTask.title}\nReason: ${reason}`,
 			);
 
-			return effectResult.ok(
-				`STILL IN PROGRESS: ${reason}. \n` +
-					`Hint: Before calling check again, ALWAYS use 'file.read_lines' to verify your changes actually look correct. \n` +
-					`If complex logic is involved, use 'task.split' to plan a systematic test.`,
-				{ status: "continuing" },
-			);
+			// 説教（Hint）を削除し、純粋な結果のみを返す
+			return effectResult.ok(`STILL IN PROGRESS: ${reason}.`, { status: "continuing" });
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			await emitDiscordInternalLog("error", `🚨 **Check Error**: ${errorMessage}`);

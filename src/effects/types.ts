@@ -1,3 +1,9 @@
+export interface EffectField {
+	type: "string" | "number" | "boolean";
+	description: string;
+	isRawData?: true; // STEP 2で隠蔽し、STEP 3で注入するフラグ
+}
+
 // 成功時と失敗時を型レベルで分離する
 export type EffectResponse<T = void> =
 	| { success: true; summary: string; data: T; error?: never }
@@ -6,7 +12,7 @@ export type EffectResponse<T = void> =
 export interface EffectDefinition<T, R = void> {
 	name: string;
 	description: string;
-	inputSchema: object;
+	inputSchema: Record<keyof T, EffectField>;
 	handler: (args: T) => Promise<EffectResponse<R>>;
 }
 

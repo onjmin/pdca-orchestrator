@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
 import { createEffect, type EffectResponse, effectResult } from "../types";
-import { emitDiscordInternalLog } from "./utils"; // 共通関数をインポート
+import { emitDiscordInternalLog } from "./utils";
 
 export const PlanArgsSchema = z.object({
 	strategy: z.string().describe("The step-by-step strategy to achieve the current task's DoD."),
@@ -14,14 +14,17 @@ export type PlanArgs = z.infer<typeof PlanArgsSchema>;
  * EFFECT: task.plan
  * 戦略を策定し、内容を Discord に報告します。
  */
-export const plan = createEffect<PlanArgs>({
+export const plan = createEffect<PlanArgs, void>({
 	name: "task.plan",
 	description: "Formulate a strategy to achieve the current task's DoD.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			strategy: { type: "string" },
-			reasoning: { type: "string" },
+		strategy: {
+			type: "string",
+			description: "The step-by-step strategy to achieve the current task's DoD.",
+		},
+		reasoning: {
+			type: "string",
+			description: "Logical reasoning for why this strategy is effective.",
 		},
 	},
 
@@ -41,15 +44,16 @@ export const plan = createEffect<PlanArgs>({
 
 			console.log(`[TaskPlan] Strategy recorded for: ${currentTask.title}`);
 
-			// --- Discord 報告を追加 ---
-			// ステータスは info とし、これから実行する作戦を人間に伝える
+			// Discord 報告
 			await emitDiscordInternalLog(
 				"info",
-				`🧠 **New Strategy for**: ${currentTask.title}\n\n**Strategy**:\n${strategy}\n\n**Reasoning**:\n${reasoning}`,
+				`🧠 **New Strategy for**: ${currentTask.title}\n\n` +
+					`**Strategy**:\n${strategy}\n\n` +
+					`**Reasoning**:\n${reasoning}`,
 			);
 
 			return effectResult.okVoid(
-				`Strategy for "${currentTask.title}" has been updated. You can now proceed with implementation.`,
+				`Strategy for "${currentTask.title}" has been updated. Proceed with implementation.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);

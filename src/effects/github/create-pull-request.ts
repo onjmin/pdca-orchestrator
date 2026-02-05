@@ -32,24 +32,21 @@ export const createPullRequest = createEffect<CreatePullRequestArgs, CreatePullR
 	description:
 		"Submit your work. Automatically handles add, commit, push, and PR creation. Call this once to finish your task.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			title: {
-				type: "string",
-				description: "PR title (also used as commit message).",
-			},
-			body: {
-				type: "string",
-				description: "PR description.",
-			},
-			branch: {
-				type: "string",
-				description: "Your working branch name.",
-			},
-			base: {
-				type: "string",
-				description: "Target branch (default: main).",
-			},
+		title: {
+			type: "string",
+			description: "PR title (also used as commit message).",
+		},
+		body: {
+			type: "string",
+			description: "PR description.",
+		},
+		branch: {
+			type: "string",
+			description: "Your working branch name.",
+		},
+		base: {
+			type: "string",
+			description: "Target branch (default: main).",
 		},
 	},
 

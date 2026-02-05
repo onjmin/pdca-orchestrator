@@ -6,38 +6,39 @@ import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const GitCloneArgsSchema = z.object({
 	repository: z.string().describe("The GitHub repository URL or 'owner/repo' format."),
-	recursive: z.boolean().default(false).describe("Whether to clone submodules."),
+	recursive: z.boolean().describe("Whether to clone submodules."),
 });
 
 export type GitCloneArgs = z.infer<typeof GitCloneArgsSchema>;
 
 /**
  * EFFECT: git.clone
- * 指定されたリポジトリを BASE_DIR にクローンします。
- * すでにディレクトリが存在し、中身がある場合はスキップまたはエラーを返します。
+ * 指定されたリポジトリをセーフな作業ディレクトリにクローンします。
  */
 export const clone = createEffect<GitCloneArgs, void>({
 	name: "git.clone",
 	description: "Clone a repository into the safe workspace directory.",
 	inputSchema: {
-		type: "object",
-		properties: {
-			repository: { type: "string" },
-			recursive: { type: "boolean" },
+		repository: {
+			type: "string",
+			description: "GitHub repository URL or 'owner/repo' format.",
+		},
+		recursive: {
+			type: "boolean",
+			description: "Set to true to clone submodules recursively.",
 		},
 	},
 
 	handler: async (args: GitCloneArgs): Promise<EffectResponse<void>> => {
 		try {
 			const { repository, recursive } = GitCloneArgsSchema.parse(args);
-			const safeRoot = getSafePath("."); // BASE_DIR のルートを取得
+			const safeRoot = getSafePath(".");
 
 			// すでに .git がある場合はクローン済みとみなす
 			if (fs.existsSync(`${safeRoot}/.git`)) {
 				return effectResult.okVoid(`Repository already exists at ${safeRoot}. Skipping clone.`);
 			}
 
-			// owner/repo 形式の場合は URL に変換（GITHUB_TOKEN を利用）
 			const token = process.env.GITHUB_TOKEN;
 			let target = repository;
 			if (!repository.startsWith("http") && !repository.startsWith("git@")) {
@@ -50,9 +51,6 @@ export const clone = createEffect<GitCloneArgs, void>({
 
 			const recursiveFlag = recursive ? "--recursive" : "";
 
-			// BASE_DIR の「中身」としてクローンするため、一度空のディレクトリを作ってから
-			// その中で init & fetch するか、あるいは親ディレクトリからターゲット指定で clone する
-			// ここではシンプルに BASE_DIR 自体をターゲットにする
 			execSync(`git clone ${recursiveFlag} ${target} .`, {
 				cwd: safeRoot,
 				stdio: "pipe",
