@@ -28,7 +28,7 @@ export interface FileGrepData {
 export const grep = createEffect<FileGrepArgs, FileGrepData>({
 	name: "file.grep",
 	description:
-		"Find keywords and line numbers. After finding a match, YOU MUST use 'file.read_lines' to inspect the surrounding code before making any changes. NEVER jump directly to patching.",
+		"Search for patterns within files or directories. Provides line numbers and surrounding context (-C 3) to help locate code quickly. Use this to identify targets for inspection or modification.",
 	inputSchema: {
 		type: "object",
 		properties: {

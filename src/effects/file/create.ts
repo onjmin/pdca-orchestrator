@@ -22,7 +22,7 @@ export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
 export const create = createEffect<FileCreateArgs, void>({
 	name: "file.create",
 	description:
-		"Create a NEW file with content. If you want to modify an existing file, 'file.patch' is HIGHLY RECOMMENDED instead of this tool to prevent losing code context.",
+		"Create a file with the specified content. If the file already exists, it will be completely overwritten. Automatically creates parent directories if they do not exist.",
 	inputSchema: {
 		type: "object",
 		properties: {

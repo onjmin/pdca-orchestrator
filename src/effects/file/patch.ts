@@ -21,7 +21,7 @@ export type FilePatchArgs = z.infer<typeof FilePatchArgsSchema>;
 export const patch = createEffect<FilePatchArgs, { path: string }>({
 	name: "file.patch",
 	description:
-		"Apply changes to a file. Prerequisite: You must have already inspected the target lines using 'file.read_lines'. Using this tool without prior inspection is a violation of the workflow.",
+		"Replace a specific string in a file with new content. Useful for targeted modifications while preserving the rest of the file. Ensure the 'search' string matches the target exactly, including indentation.",
 	inputSchema: {
 		type: "object",
 		properties: {

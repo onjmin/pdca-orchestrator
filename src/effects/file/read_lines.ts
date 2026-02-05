@@ -28,7 +28,7 @@ export interface FileReadLinesData {
 export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 	name: "file.read_lines",
 	description:
-		"Read specific lines (max 100). Mandatory step after 'file.grep' and BEFORE any write/patch operations. Ensure you understand the full logic by seeing the actual line numbers and context.",
+		"Read specific lines of a file with line numbers. Essential for examining code context before planning and verifying results after modifications.",
 	inputSchema: {
 		type: "object",
 		properties: {
