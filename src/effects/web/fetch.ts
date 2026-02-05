@@ -44,17 +44,24 @@ export const fetchContent = createEffect<WebFetchArgs, WebFetchData>({
 
 	handler: async (args: WebFetchArgs): Promise<EffectResponse<WebFetchData>> => {
 		try {
-			// headers が string で送られてきた場合のパース処理（Orchestrator側でパース済みなら不要だが念のため）
-			const rawArgs = args as any;
-			if (typeof rawArgs.headers === "string") {
+			// 1. まず unknown として受け取り、実体を取り出す
+			const raw = args as Record<string, unknown>;
+			let processedHeaders = raw.headers;
+
+			// 2. 文字列で届いた場合は JSON としてパースを試みる
+			if (typeof processedHeaders === "string") {
 				try {
-					rawArgs.headers = JSON.parse(rawArgs.headers);
+					processedHeaders = JSON.parse(processedHeaders);
 				} catch {
-					rawArgs.headers = undefined;
+					processedHeaders = undefined;
 				}
 			}
 
-			const { url, method, headers } = WebFetchArgsSchema.parse(rawArgs);
+			// 3. Zod で最終的な型チェックを通す
+			const { url, method, headers } = WebFetchArgsSchema.parse({
+				...raw,
+				headers: processedHeaders,
+			});
 
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), 10000);

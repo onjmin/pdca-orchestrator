@@ -8,7 +8,8 @@ async function testShellExec() {
 	console.log("\n[Test 1] Executing a successful command (echo)...");
 	const res1 = await exec.handler({
 		command: 'echo "Hello from Shell!"',
-		timeout: 60000, // 明示的に指定
+		cwd: ".", // フラット化に伴い、明示的に指定
+		timeout: 60000,
 	});
 
 	if (res1.success) {
@@ -22,12 +23,15 @@ async function testShellExec() {
 	console.log("\n[Test 2] Executing a failing command (non-existent)...");
 	const res2 = await exec.handler({
 		command: "this-command-does-not-exist-12345",
-		timeout: 60000, // 追加
+		cwd: ".", // 明示的に指定
+		timeout: 60000,
 	});
 
 	if (!res2.success) {
 		console.log("✅ Correctly handled failure.");
-		console.log(`Captured Error Message:\n${res2.error}`);
+		// エラーメッセージの冒頭を表示
+		const shortError = res2.error.split("\n")[0];
+		console.log(`Captured Error Message: ${shortError}`);
 	} else {
 		console.error("❌ Unexpected Success. This should have failed.");
 	}
@@ -37,7 +41,7 @@ async function testShellExec() {
 	const res3 = await exec.handler({
 		command: process.platform === "win32" ? "dir" : "ls -F",
 		cwd: ".",
-		timeout: 60000, // 追加
+		timeout: 60000,
 	});
 
 	if (res3.success) {
