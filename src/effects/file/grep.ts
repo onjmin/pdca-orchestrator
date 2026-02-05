@@ -36,7 +36,6 @@ export const grep = createEffect<FileGrepArgs, FileGrepData>({
 			pattern_placeholder: { type: "string" },
 			recursive: { type: "boolean" },
 		},
-		required: ["path", "pattern_placeholder"],
 	},
 
 	handler: async (args: FileGrepArgs): Promise<EffectResponse<FileGrepData>> => {

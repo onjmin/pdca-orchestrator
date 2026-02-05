@@ -65,7 +65,6 @@ export const theorize = createEffect<TheorizeArgs, TheorizeData>({
 				],
 			},
 		},
-		required: ["problem_statement", "academic_context"],
 	},
 
 	handler: async (args: TheorizeArgs): Promise<EffectResponse<TheorizeData>> => {

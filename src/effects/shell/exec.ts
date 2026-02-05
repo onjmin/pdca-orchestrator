@@ -36,7 +36,6 @@ export const exec = createEffect<ShellExecArgs, ShellExecData>({
 			command: { type: "string" },
 			timeout: { type: "number" },
 		},
-		required: ["command"],
 	},
 
 	handler: async (args: ShellExecArgs): Promise<EffectResponse<ShellExecData>> => {

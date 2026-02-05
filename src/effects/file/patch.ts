@@ -29,7 +29,6 @@ export const patch = createEffect<FilePatchArgs, { path: string }>({
 			search: { type: "string" },
 			replace: { type: "string" },
 		},
-		required: ["path", "search", "replace"],
 	},
 
 	handler: async (args: FilePatchArgs): Promise<EffectResponse<{ path: string }>> => {

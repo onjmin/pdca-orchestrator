@@ -35,7 +35,6 @@ export const checkout = createEffect<GitCheckoutArgs, void>({
 			createIfMissing: { type: "boolean" },
 			startPoint: { type: "string" },
 		},
-		required: ["branch"],
 	},
 
 	handler: async (args: GitCheckoutArgs): Promise<EffectResponse<void>> => {

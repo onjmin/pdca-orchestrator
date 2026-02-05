@@ -51,7 +51,6 @@ export const createPullRequest = createEffect<CreatePullRequestArgs, CreatePullR
 				description: "Target branch (default: main).",
 			},
 		},
-		required: ["title", "body", "branch"],
 	},
 
 	handler: async (args: CreatePullRequestArgs): Promise<EffectResponse<CreatePullRequestData>> => {

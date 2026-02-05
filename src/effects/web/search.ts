@@ -46,7 +46,6 @@ export const search = createEffect<WebSearchArgs, WebSearchData>({
 				description: "The specific search query.",
 			},
 		},
-		required: ["query"],
 	},
 
 	handler: async (args: WebSearchArgs): Promise<EffectResponse<WebSearchData>> => {

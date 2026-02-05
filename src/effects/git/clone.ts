@@ -25,7 +25,6 @@ export const clone = createEffect<GitCloneArgs, void>({
 			repository: { type: "string" },
 			recursive: { type: "boolean" },
 		},
-		required: ["repository"],
 	},
 
 	handler: async (args: GitCloneArgs): Promise<EffectResponse<void>> => {

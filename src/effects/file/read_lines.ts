@@ -36,7 +36,6 @@ export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 			startLine: { type: "number" },
 			endLine: { type: "number" },
 		},
-		required: ["path", "startLine", "endLine"],
 	},
 
 	handler: async (args: FileReadLinesArgs): Promise<EffectResponse<FileReadLinesData>> => {

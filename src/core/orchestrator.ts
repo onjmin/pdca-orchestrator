@@ -112,9 +112,9 @@ Respond with only the effect name.
 		const props = schemaForLlm.properties || {};
 		Object.keys(props).forEach((key) => {
 			// description やフラグから __DATA__ フィールドの有無を確認
-			if (props[key].isRawData || props[key].description?.includes("__DATA__")) {
+			if (props[key].description?.includes("__DATA__")) {
 				hasRawDataField = true;
-				props[key].description = "!!! MANDATORY: Write ONLY the exact string '__DATA__' here. !!!";
+				delete props[key];
 			}
 		});
 
@@ -133,7 +133,7 @@ ${JSON.stringify(this.lastEffectResult || "No previous action.", null, 2)}
 ${JSON.stringify(schemaForLlm, null, 2)}
 
 ### Instruction
-Generate JSON arguments. Use "__DATA__" where required.
+Generate JSON arguments for the fields defined in the schema.
 Respond with ONLY the JSON object.
 `.trim();
 

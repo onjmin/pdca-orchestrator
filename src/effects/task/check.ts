@@ -31,7 +31,6 @@ export const check = createEffect<CheckArgs, CheckData>({
 			isPassed: { type: "boolean" },
 			reason: { type: "string" },
 		},
-		required: ["observations", "isPassed", "reason"],
 	},
 
 	handler: async (args: CheckArgs): Promise<EffectResponse<CheckData>> => {

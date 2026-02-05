@@ -23,7 +23,6 @@ export const plan = createEffect<PlanArgs>({
 			strategy: { type: "string" },
 			reasoning: { type: "string" },
 		},
-		required: ["strategy", "reasoning"],
 	},
 
 	handler: async (args: PlanArgs): Promise<EffectResponse<void>> => {

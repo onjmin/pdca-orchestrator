@@ -33,7 +33,6 @@ export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
 			query: { type: "string" },
 			language: { type: "string", default: "en" },
 		},
-		required: ["query"],
 	},
 
 	handler: async (args: WebWikipediaArgs): Promise<EffectResponse<WebWikipediaData>> => {

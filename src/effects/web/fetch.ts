@@ -29,7 +29,6 @@ export const fetchContent = createEffect<WebFetchArgs, WebFetchData>({
 			method: { type: "string", enum: ["GET", "POST"], default: "GET" },
 			headers: { type: "object", additionalProperties: { type: "string" } },
 		},
-		required: ["url"],
 	},
 
 	handler: async (args: WebFetchArgs): Promise<EffectResponse<WebFetchData>> => {

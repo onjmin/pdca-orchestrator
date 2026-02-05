@@ -25,7 +25,6 @@ export const wait = createEffect<TaskWaitArgs, void>({
 			ms: { type: "number" },
 			reason: { type: "string" },
 		},
-		required: ["ms", "reason"],
 	},
 
 	handler: async (args: TaskWaitArgs): Promise<EffectResponse<void>> => {

@@ -33,11 +33,9 @@ export const split = createEffect<SplitArgs>({
 					description: { type: "string" },
 					dod: { type: "string" },
 				},
-				required: ["title", "description", "dod"],
 			},
 			reasoning: { type: "string" },
 		},
-		required: ["subTask", "reasoning"],
 	},
 
 	handler: async (args: SplitArgs): Promise<EffectResponse<void>> => {
