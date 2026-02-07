@@ -8,7 +8,6 @@ async function testWikipedia() {
 	console.log("\n[Test 1] Searching for 'TypeScript' in Japanese...");
 	const res1 = await wikipedia.handler({
 		query: "TypeScript",
-		language: "ja",
 	});
 
 	// 'status' ではなく 'success' でチェックします
@@ -26,7 +25,6 @@ async function testWikipedia() {
 	console.log("\n[Test 2] Searching for a non-existent topic...");
 	const res2 = await wikipedia.handler({
 		query: "ThisIsSomeRandomStringThatDoesNotExistOnWikipedia12345",
-		language: "en",
 	});
 
 	if (!res2.success) {

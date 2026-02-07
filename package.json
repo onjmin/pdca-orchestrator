@@ -10,7 +10,7 @@
     "test:file": "tsx src/workflow/tests/file-create-test.ts",
     "test:shell": "tsx src/workflow/tests/shell-exec-test.ts",
     "test:llm": "tsx src/workflow/tests/llm-test.ts",
-    "test:fetch": "tsx src/workflow/tests/web-fetch-test.ts",
+    "test:fetch": "tsx src/workflow/tests/wikipedia-fetch-test.ts",
     "test:wikipedia": "tsx src/workflow/tests/web-wikipedia-test.ts",
     "test:search": "tsx src/workflow/tests/web-search-test.ts",
     "test:github": "tsx src/workflow/tests/github-auth-test.ts",
