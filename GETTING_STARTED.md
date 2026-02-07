@@ -11,34 +11,301 @@
 
 ---
 
-## 1. 動作環境の準備
+## 🧩 環境構成の概要
 
-### ツールチェインのインストール
-プロジェクトのツールバージョンを固定するため、[Volta](https://volta.sh/) を使用します。
+以降の手順では、安全性と再現性を最優先し、実行環境を明確に分離しています。
 
-1. Volta をインストール
-2. プロジェクトルートで以下を実行：
-   ```bash
-   volta install node
-   volta install pnpm
-   pnpm install
-   ```
+* **Windows（ホスト）**
+
+  * LM Studio / Ollama を実行
+  * GPU・モデル管理のみ担当
+  * AI エージェントからの直接操作は禁止
+
+* **WSL2（Ubuntu）**
+
+  * リポジトリの `git clone`
+  * `.env` の作成・管理
+  * Docker のビルド・起動
+  * Windows ファイルシステム（`C:\`, `/mnt/c`）は使用しない
+
+* **Docker（AI エージェント実行環境）**
+
+  * Node / pnpm / git / shell を内包
+  * 任意コマンド実行・ファイル書き換えを許可
+  * 破壊前提のサンドボックス（read-only ルート / 実行後破棄）
+
+> **原則**
+> 設定と実体は WSL2、実行は Docker、LLM は Windows。
+> AI が暴走しても、ホスト環境は守られます。
 
 ---
 
-## 2. 環境設定 (``.env``)
+## 1. WSL2 & Docker 環境の構築
 
-プロジェクトの動作には設定ファイルが必要です。まず、テンプレートをコピーして設定ファイルを作成してください。
+> [!WARNING]
+> 本プロジェクトは **任意コード実行を伴う AI エージェント**を含みます。
+> **Windows ホスト環境を保護するため、WSL2 上での実行を必須**とします。
+> 以下の手順を **必ず最初に** 実施してください。
+
+---
+
+### 1.1 BIOS（UEFI）で仮想化を有効にする
+
+WSL2 は内部的に **軽量仮想マシン（Hyper-V）** を使用します。
+そのため **CPU 仮想化支援機能を BIOS で有効化**する必要があります。
+
+#### 手順
+
+1. PC を再起動
+2. 起動直後に以下のいずれかのキーを連打して BIOS / UEFI に入る
+
+   * `DEL` / `F2` / `F10` / `ESC`（メーカーにより異なる）
+3. 以下の項目を探して **Enabled** に設定
+
+**Intel CPU の場合**
+
+* `Intel Virtualization Technology`
+* `VT-x`
+
+**AMD CPU の場合**
+
+* `SVM Mode`
+* `AMD-V`
+
+4. 設定を保存して再起動（多くの場合 `F10`）
+
+> 💡 この設定を行わないと、後続の WSL2 セットアップは必ず失敗します。
+
+---
+
+### 1.2 WSL2 のインストール
+
+管理者権限の PowerShell または コマンドプロンプトで実行：
+
+```powershell
+wsl --install
+```
+
+インストール完了後、**必ず再起動**してください。
+
+再起動後、状態を確認：
+
+```powershell
+wsl --status
+```
+
+以下のように表示されれば OK です：
+
+```
+既定のバージョン: 2
+WSL2 はサポートされています
+```
+
+---
+
+### 1.3 Ubuntu のインストール
+
+WSL2 上で使用する Linux ディストリビューションとして Ubuntu を導入します。
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+初回起動時に：
+
+* Linux ユーザー名
+* パスワード
+
+を設定してください。
+
+以降の作業は **Ubuntu（WSL2）内のターミナル**で行います。
+
+---
+
+### 1.4 Git のインストール（WSL2 内）
+
+以降の手順では **WSL2（Ubuntu）側で git を使用**します。
+未インストールの場合は、以下を実行してください。
+
+```bash
+sudo apt update
+sudo apt install -y git
+````
+
+確認：
+
+```bash
+git --version
+```
+
+バージョンが表示されれば OK です。
+
+---
+
+### 1.5 Docker Engine のインストール
+
+本プロジェクトでは **WSL2 内に直接 Docker Engine をインストール**します。
+（Docker Desktop は不要・非推奨）
+
+Ubuntu ターミナルで以下を実行：
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+```
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+```
+
+```bash
+echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+```
+
+---
+
+### 1.6 Docker を sudo なしで使えるようにする
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+一度 **Ubuntu を終了して再起動**してください。
+
+```powershell
+wsl --shutdown
+```
+
+再度 Ubuntu を起動後、確認：
+
+```bash
+docker run hello-world
+```
+
+メッセージが表示されれば成功です 🎉
+
+---
+
+### 1.7 ネットワークについて（LM Studio との疎通）
+
+WSL2 からは **Windows の `localhost` に直接アクセス可能**です。
+
+そのため、Docker コンテナやエージェントから：
+
+```
+http://localhost:1234
+```
+
+で **Windows 側の LM Studio (OpenAI互換API)** に接続できます。
+
+特別なポートフォワード設定は不要です。
+
+---
+
+## 1.8 プロジェクトのクローン
+
+> [!IMPORTANT]
+> **この操作は必ず WSL2（Ubuntu）内で行ってください。**
+> Windows ファイルシステム（`C:\` や `/mnt/c`）上での clone は禁止します。
+
+Ubuntu ターミナルで：
+
+```bash
+mkdir -p ~/workspace
+cd ~/workspace
+git clone https://github.com/onjmin/elves-shoemaker.git
+cd elves-shoemaker
+```
+
+以降、**このディレクトリが作業ルート**になります。
+
+---
+
+## 2. 環境設定（.env）
+
+Docker コンテナは **設定を保持しません**。
+そのため `.env` は **ホスト（WSL2）側で作成・管理**します。
 
 ```bash
 cp .env.example .env
 ```
 
-作成した ``.env`` を開き、埋めてください。
+`.env` を編集し、以下を設定してください：
+
+* LLM API URL（例：`http://localhost:1234`）
+* Discord Bot Token
+* GitHub Token
+* その他必須パラメータ
+
+> 💡 WSL2 からの `localhost` は Windows の `localhost` と直結しています
+> → LM Studio はそのまま `http://localhost:1234` で OK
 
 ---
 
-## 3. 疎通確認 (Health Check)
+## 3. AI エージェント実行環境（Docker）
+
+本プロジェクトの AI エージェントは
+**必ず Docker コンテナ内で実行**してください。
+
+### 3.1 Docker イメージのビルド
+
+```bash
+docker build -t kobito .
+```
+
+---
+
+### 3.2 安全なコンテナ起動
+
+以下 **以外の起動方法は禁止**します。
+
+```bash
+docker run --rm -it \
+  --read-only \
+  --cap-drop ALL \
+  --env-file .env \
+  -v $(pwd):/app:rw \
+  kobito
+```
+
+#### この起動方法の安全設計
+
+* `/` は **read-only**
+* 書き込み可能なのは `/app` のみ
+* Linux capability を全削除
+* `.env` はホスト（WSL2）から注入
+* コンテナ終了時に完全破棄（`--rm`）
+
+---
+
+### 3.3 コンテナ内での操作
+
+以降のすべての操作は **コンテナ内シェル**で行います。
+
+```bash
+pnpm install
+pnpm test:all
+pnpm start
+```
+
+> 💡 Volta / Node / pnpm / git はすべてコンテナ内に事前インストールされています。
+
+---
+
+## 4. 疎通確認（Health Check）
 
 小人を本格的に動かす前に、各パーツが正しく接続されているか確認しましょう。
 以下のコマンドで、LLMや外部ツールへの接続テストを一括実行できます。
@@ -60,7 +327,7 @@ pnpm test:all
 
 ---
 
-## 4. 小人に仕事を頼む (``GOAL.md``)
+## 5. 小人に仕事を頼む（GOAL.md）
 
 小人はデスク（プロジェクトルート）に置かれた ``GOAL.md`` を見て、その日の仕事を理解します。
 リポジトリにある **``GOAL.md`` を直接書き換えて**、以下の3つのセクションを記入してください。
@@ -87,7 +354,7 @@ srcディレクトリにhello.tsを作成してください。
 
 ---
 
-## 5. 実行
+## 6. 実行
 
 準備ができたら、小人を呼び出しましょう。
 
