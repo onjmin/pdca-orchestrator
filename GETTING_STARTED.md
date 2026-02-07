@@ -317,12 +317,8 @@ docker run --rm -it \
 * **--cap-drop ALL**
   Linux カーネルの権限をすべて削除し、権限昇格や不正操作を防止
 
-* **--tmpfs /home/agent:rw,noexec,nosuid,size=1g,uid=1000,gid=1000,mode=700**
-  非 root ユーザー（`agent`）のホームディレクトリを **一時メモリ上（tmpfs）として提供**します。
-  pnpm / Node.js が使用する **キャッシュ・一時ファイルの書き込み先**を確保するためのものです。
-  `uid/gid` を `agent` に合わせることで、`.bashrc` や各種ツールの初期化時に
-  **Permission denied が発生しないようにしています。**
-  この領域は **コンテナ終了時に完全に破棄され、ホストには一切残りません。**
+* **--tmpfs /home/agent:rw,nosuid,size=1g,uid=1000,gid=1000,mode=700**
+  おまじない
 
 * **-v $(pwd):/app:rw**
   ホストの作業ディレクトリを `/app` にマウント
