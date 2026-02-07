@@ -1,5 +1,5 @@
-const LLM_URL = process.env.LLM_API_URL ?? "http://localhost:1234/v1/chat/completions";
-const LLM_KEY = process.env.LLM_API_KEY ?? "not-needed";
+const LLM_API_URL = process.env.LLM_API_URL ?? "http://localhost:1234/v1/chat/completions";
+const LLM_API_KEY = process.env.LLM_API_KEY ?? "not-needed";
 const LLM_MODEL = process.env.LLM_MODEL ?? "local-model"; // Ollamaなどはモデル名指定が必須
 
 export interface LLMOutput {
@@ -19,12 +19,12 @@ export const llm = {
 	},
 
 	async ask(prompt: string): Promise<LLMOutput> {
-		const response = await fetch(LLM_URL, {
+		const response = await fetch(LLM_API_URL, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 				// キーが空でも規格通り Bearer を送って問題ないサーバーが多いです
-				Authorization: `Bearer ${LLM_KEY}`,
+				Authorization: `Bearer ${LLM_API_KEY}`,
 			},
 			body: JSON.stringify({
 				model: LLM_MODEL, // 互換性のため追加
