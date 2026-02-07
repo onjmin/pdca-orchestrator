@@ -1,8 +1,15 @@
 FROM ubuntu:22.04
 
-# ===== 基本ツール（rootでのみ実行） =====
+# バージョン指定
+ENV NODE_VERSION=24.13.0
+ENV PNPM_VERSION=10.28.2
+
+# ===== ツール群のインストール =====
+# cat, sed, grep は ubuntu:22.04 に標準搭載されていますが、
+# git, tree, curl, jq 等を明示的に追加します。
 RUN apt-get update && apt-get install -y \
     git \
+    tree \
     curl \
     ca-certificates \
     jq \
@@ -10,28 +17,21 @@ RUN apt-get update && apt-get install -y \
     bash \
  && rm -rf /var/lib/apt/lists/*
 
-# ===== GitHub CLI =====
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
- && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
- && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
-    https://cli.github.com/packages stable main" \
-    > /etc/apt/sources.list.d/github-cli.list \
- && apt-get update \
- && apt-get install -y gh \
- && rm -rf /var/lib/apt/lists/*
+# ===== Node.js 直接インストール =====
+RUN curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local
 
-# ===== 非rootユーザー作成 =====
+# ===== pnpm インストール =====
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+# 1. ユーザー作成
 RUN useradd -m -u 1000 agent
 
-# ===== 作業ディレクトリ（所有権を明示） =====
+# 2. 作業ディレクトリ作成と権限譲渡（ここは root で実行）
 WORKDIR /app
 RUN chown agent:agent /app
 
-# ===== Volta（agentユーザー用） =====
-ENV VOLTA_HOME=/home/agent/.volta
-ENV PATH=$VOLTA_HOME/bin:$PATH
-
+# 3. ユーザー切り替え
 USER agent
-RUN curl https://get.volta.sh | bash \
- && volta install node@20 pnpm
+
+# 4. 起動時の振る舞い定義
+CMD ["sh", "-c", "pnpm install && exec bash"]

@@ -222,7 +222,7 @@ If this is code, provide the full source code.
  * デバッグ用：最新のプロンプトをファイルに上書き保存する
  */
 async function savePromptLog(fileName: string, prompt: string) {
-	if (process.env.DEBUG_PROMPT !== "1") return;
+	if (process.env.DEBUG_MODE !== "1") return;
 
 	const logDir = path.join(process.cwd(), "logs", "prompts");
 	if (!fs.existsSync(logDir)) {

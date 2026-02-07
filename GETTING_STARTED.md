@@ -285,18 +285,13 @@ nano .env
 
 ## 3. AI エージェント実行環境（Docker）
 
-本プロジェクトの AI エージェントは
-**必ず Docker コンテナ内で実行**してください。
-
 ### 3.1 Docker イメージのビルド
 
 ```bash
-docker build -t kobito .
+docker build -t elves-shoemaker .
 ```
 
 ### 3.2 安全なコンテナ起動
-
-以下 **以外の起動方法は禁止**します。
 
 ```bash
 docker run --rm -it \
@@ -304,14 +299,14 @@ docker run --rm -it \
   --cap-drop ALL \
   --env-file .env \
   -v $(pwd):/app:rw \
-  kobito
+  elves-shoemaker
 ```
 
-#### この起動方法の安全設計
+#### 引数の意味
 
-* `/` は **read-only**
+* ルートファイルシステム（/）は **read-only**
 * 書き込み可能なのは `/app` のみ
-* Linux capability を全削除
+* Linux capability を全削除（権限昇格防止）
 * `.env` はホスト（WSL2）から注入
 * コンテナ終了時に完全破棄（`--rm`）
 
