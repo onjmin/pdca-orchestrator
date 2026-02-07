@@ -266,11 +266,27 @@ cd elves-shoemaker
 Docker コンテナは **設定を保持しません**。
 そのため `.env` は **ホスト（WSL2）側で作成・管理**します。
 
+### 2.1 .env を作成
+
 ```bash
 cp .env.example .env
 ```
 
-`.env` を編集し、以下を設定してください：
+### 2.2 nano で編集（WSL Ubuntu）
+
+```bash
+nano .env
+```
+
+操作方法:
+
+* 編集 → そのまま入力
+* 保存 → `Ctrl + O` → Enter
+* 終了 → `Ctrl + X`
+
+### 2.3 必要な値を設定
+
+以下を `.env` に記入してください：
 
 * LLM API URL（例：`http://192.168.0.23:1234/v1/chat/completions`）
 * Discord webhook URL
