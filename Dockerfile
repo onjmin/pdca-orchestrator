@@ -37,7 +37,6 @@ RUN chown agent:agent /app
 USER agent
 
 # ===== コンテナ起動時の挙動 =====
-# 1. コンテナ起動のたびに pnpm install を実行し、WSL/Windows依存の node_modules を Linux用に上書きする
-# 2. Dockerの仕様（メインプロセス終了 = コンテナ終了）を防ぐため、最後に exec bash を実行する
-# これにより、コンテナが「死ぬ」のを防ぎ、人間が手動で疎通確認や start を行うための待機状態を作る
-CMD ["sh", "-c", "pnpm install && exec bash"]
+# 起動時は何もせず、対話シェルのみを起動する
+# 依存関係のインストールや実行は、コンテナ内で人間が明示的に行う
+CMD ["bash"]
