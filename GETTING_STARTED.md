@@ -139,17 +139,26 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io
 
 ### 1.4 Docker を sudo なしで使えるようにする
 
+#### 1.4.1 Ubuntu 内
+
 ```bash
 sudo usermod -aG docker $USER
+exit   # ここでシェルを抜ける
 ```
 
-一度 **Ubuntu を終了して再起動**してください。
+#### 1.4.2 PowerShell / CMD 側
 
 ```powershell
 wsl --shutdown
 ```
 
-再度 Ubuntu を起動後、確認：
+#### 1.4.3 Ubuntu を再起動
+
+```powershell
+wsl
+```
+
+#### 1.4.4 動作確認
 
 ```bash
 docker run hello-world
