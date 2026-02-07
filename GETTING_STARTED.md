@@ -183,8 +183,6 @@ WSL に Docker をインストールした直後は、
 
 まずは切り分けとして、**WSL2 内部から Windows 側 LLM API への疎通**を確認します。
 
----
-
 #### 1.5.1 Windows 側 LLM API の待ち受け確認（LM Studio）
 
 LM Studio を使用している場合、
