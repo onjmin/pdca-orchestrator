@@ -299,6 +299,7 @@ docker run --rm -it \
   --read-only \
   --cap-drop ALL \
   --tmpfs /home/agent:rw,nosuid,size=1g,uid=1000,gid=1000,mode=700 \
+  --tmpfs /tmp:rw,nosuid,noexec,size=256m \
   -v $(pwd):/app:rw \
   elves-shoemaker
 ```
@@ -309,7 +310,7 @@ docker run --rm -it \
 * **-it**: インタラクティブモード。**起動後そのままコンテナ内で操作するために必要**
 * **--read-only**: ルートファイルシステム（`/`）を読み取り専用にし、OS破壊や永続的な改変を防止
 * **--cap-drop ALL**: Linux カーネルの権限をすべて削除し、権限昇格や不正操作を防止
-* **--tmpfs /home/agent:rw,nosuid,size=1g,uid=1000,gid=1000,mode=700**: おまじない
+* **--tmpfs**: pnpm や tsx が内部的にキャッシュや一時ファイルを書き込むため、やむを得ずマウント外の領域にも一時的な書き込み先を用意する
 * **-v $(pwd):/app:rw**: ホストの作業ディレクトリを `/app` にマウント。ソースコードや成果物はホスト側に保持される
 
 ### 3.3 依存関係のインストール（初回のみ）
