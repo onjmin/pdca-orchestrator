@@ -11,6 +11,35 @@
 
 ---
 
+## 🧩 環境構成の概要
+
+以降の手順では、安全性と再現性を最優先し、実行環境を明確に分離しています。
+
+* **Windows（ホスト）**
+
+  * LM Studio / Ollama を実行
+  * GPU・モデル管理のみ担当
+  * AI エージェントからの直接操作は禁止
+
+* **WSL2（Ubuntu）**
+
+  * リポジトリの `git clone`
+  * `.env` の作成・管理
+  * Docker のビルド・起動
+  * Windows ファイルシステム（`C:\`, `/mnt/c`）は使用しない
+
+* **Docker（AI エージェント実行環境）**
+
+  * Node / pnpm / git / shell を内包
+  * 任意コマンド実行・ファイル書き換えを許可
+  * 破壊前提のサンドボックス（read-only ルート / 実行後破棄）
+
+> **原則**
+> 設定と実体は WSL2、実行は Docker、LLM は Windows。
+> AI が暴走しても、ホスト環境は守られます。
+
+---
+
 ## 🧱 0. WSL2 & Docker 環境の構築（Windows ユーザー向け・必須）
 
 > [!WARNING]
@@ -93,6 +122,26 @@ wsl --install -d Ubuntu
 
 ---
 
+### 0-3-1. Git のインストール（WSL2 内）
+
+以降の手順では **WSL2（Ubuntu）側で git を使用**します。
+未インストールの場合は、以下を実行してください。
+
+```bash
+sudo apt update
+sudo apt install -y git
+````
+
+確認：
+
+```bash
+git --version
+```
+
+バージョンが表示されれば OK です。
+
+---
+
 ### 0-4. Docker Engine のインストール（Docker Desktop 不要）
 
 本プロジェクトでは **WSL2 内に直接 Docker Engine をインストール**します。
@@ -166,55 +215,83 @@ http://localhost:1234
 
 ---
 
-### ✅ ここまで終わったら
+## 0-7. プロジェクトのクローン（WSL2 上で実施）
 
-* WSL2：隔離された Linux 実行環境
-* Docker：AI エージェント用の追加サンドボックス
-* Windows：LM Studio 実行環境
+> [!IMPORTANT]
+> **この操作は必ず WSL2（Ubuntu）内で行ってください。**
+> Windows ファイルシステム（`C:\` や `/mnt/c`）上での clone は禁止します。
 
-という **安全かつ再現性の高い構成**が完成しています。
+Ubuntu ターミナルで：
 
-この状態で、以降の手順（1. 動作環境の準備）に進んでください。
+```bash
+mkdir -p ~/workspace
+cd ~/workspace
+git clone https://github.com/onjmin/elves-shoemaker.git
+cd elves-shoemaker
+```
+
+以降、**このディレクトリが作業ルート**になります。
 
 ---
 
-## 1. AI エージェント実行環境（Docker）
+## 1. 環境設定（`.env`）【Docker 起動前・必須】
 
-本プロジェクトの AI エージェントは **必ず Docker コンテナ内で実行**してください。  
-ホスト（WSL2）上で `pnpm start` を直接実行することは禁止します。
+Docker コンテナは **設定を保持しません**。
+そのため `.env` は **ホスト（WSL2）側で作成・管理**します。
 
-### 1-1. Docker イメージのビルド
+```bash
+cp .env.example .env
+```
 
-プロジェクトルートで以下を実行：
+`.env` を編集し、以下を設定してください：
+
+* LLM API URL（例：`http://localhost:1234`）
+* Discord Bot Token
+* GitHub Token
+* その他必須パラメータ
+
+> 💡 WSL2 からの `localhost` は Windows の `localhost` と直結しています
+> → LM Studio はそのまま `http://localhost:1234` で OK
+
+---
+
+## 2. AI エージェント実行環境（Docker）
+
+本プロジェクトの AI エージェントは
+**必ず Docker コンテナ内で実行**してください。
+
+### 2-1. Docker イメージのビルド
 
 ```bash
 docker build -t kobito .
-````
+```
 
 ---
 
-### 1-2. 安全なコンテナ起動（必須）
+### 2-2. 安全なコンテナ起動（必須）
 
-以下のコマンド **以外での起動は禁止**します。
+以下 **以外の起動方法は禁止**します。
 
 ```bash
 docker run --rm -it \
   --read-only \
   --cap-drop ALL \
+  --env-file .env \
   -v $(pwd):/app:rw \
   kobito
 ```
 
-#### この起動方法が行っている安全対策
+#### この起動方法の安全設計
 
-* `/` を **read-only** に設定
+* `/` は **read-only**
 * 書き込み可能なのは `/app` のみ
-* Linux capability をすべて削除
-* コンテナ終了時に状態を破棄（`--rm`）
+* Linux capability を全削除
+* `.env` はホスト（WSL2）から注入
+* コンテナ終了時に完全破棄（`--rm`）
 
 ---
 
-### 1-3. コンテナ内での操作
+### 2-3. コンテナ内での操作
 
 以降のすべての操作は **コンテナ内シェル**で行います。
 
@@ -225,18 +302,6 @@ pnpm start
 ```
 
 > 💡 Volta / Node / pnpm / git はすべてコンテナ内に事前インストールされています。
-
----
-
-## 2. 環境設定 (``.env``)
-
-プロジェクトの動作には設定ファイルが必要です。まず、テンプレートをコピーして設定ファイルを作成してください。
-
-```bash
-cp .env.example .env
-```
-
-作成した ``.env`` を開き、埋めてください。
 
 ---
 
