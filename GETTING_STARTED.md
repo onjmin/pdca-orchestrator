@@ -248,8 +248,6 @@ curl http://192.168.0.23:1234/v1/models
 > ※ `curl http://localhost:1234` が失敗する環境もあります。
 > その場合は **必ず Windows 側で表示された IP アドレスを使用してください。**
 
----
-
 > [!IMPORTANT]
 >
 > LM Studio を使わず、独自の方法で **Windows 側から LLM API を公開する場合**、
