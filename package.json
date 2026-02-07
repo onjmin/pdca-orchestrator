@@ -20,7 +20,7 @@
   "keywords": [],
   "author": "onjmin",
   "license": "MIT",
-  "packageManager": "pnpm@10.17.1",
+  "packageManager": "pnpm@10.28.2",
   "volta": {
     "node": "24.13.0",
     "pnpm": "10.28.2"
