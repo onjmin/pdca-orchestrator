@@ -24,6 +24,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # ===== 非rootユーザー作成 =====
 RUN useradd -m -u 1000 agent
 
+# ===== 作業ディレクトリ（所有権を明示） =====
+WORKDIR /app
+RUN chown agent:agent /app
+
 # ===== Volta（agentユーザー用） =====
 ENV VOLTA_HOME=/home/agent/.volta
 ENV PATH=$VOLTA_HOME/bin:$PATH
@@ -31,6 +35,3 @@ ENV PATH=$VOLTA_HOME/bin:$PATH
 USER agent
 RUN curl https://get.volta.sh | bash \
  && volta install node@20 pnpm
-
-# ===== 作業ディレクトリ =====
-WORKDIR /app
