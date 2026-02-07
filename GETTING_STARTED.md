@@ -76,7 +76,6 @@ wsl --status
 
 ```
 既定のバージョン: 2
-WSL2 はサポートされています
 ```
 
 ---
@@ -100,27 +99,7 @@ wsl --install -d Ubuntu
 
 ---
 
-### 1.3 Git のインストール（WSL2 内）
-
-以降の手順では **WSL2（Ubuntu）側で git を使用**します。
-未インストールの場合は、以下を実行してください。
-
-```bash
-sudo apt update
-sudo apt install -y git
-````
-
-確認：
-
-```bash
-git --version
-```
-
-バージョンが表示されれば OK です。
-
----
-
-### 1.4 Docker Engine のインストール
+### 1.3 Docker Engine のインストール
 
 本プロジェクトでは **WSL2 内に直接 Docker Engine をインストール**します。
 （Docker Desktop は不要・非推奨）
@@ -155,7 +134,7 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io
 
 ---
 
-### 1.5 Docker を sudo なしで使えるようにする
+### 1.4 Docker を sudo なしで使えるようにする
 
 ```bash
 sudo usermod -aG docker $USER
@@ -177,7 +156,7 @@ docker run hello-world
 
 ---
 
-### 1.6 ネットワークについて（LM Studio との疎通）
+### 1.5 ネットワークについて（LM Studio との疎通）
 
 WSL2 からは **Windows の `localhost` に直接アクセス可能**です。
 
@@ -193,7 +172,7 @@ http://localhost:1234
 
 ---
 
-## 1.7 プロジェクトのクローン
+## 1.6 プロジェクトのクローン
 
 > [!IMPORTANT]
 > **この操作は必ず WSL2（Ubuntu）内で行ってください。**
