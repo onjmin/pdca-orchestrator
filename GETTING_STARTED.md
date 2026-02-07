@@ -177,29 +177,6 @@ WSL に Docker をインストールした直後は、
 
 ---
 
-### 1.5 ネットワークについて（LM Studio との疎通）
-
-最終的には  
-**Windows → WSL → Docker コンテナ**  
-の経路で LLM API に接続できる必要があります。
-
-WSL2 では、`localhost` は Windows と共有されません。
-そのため、WSL から Windows 側サービスに接続するには
-**Windows ホストの IP アドレス**を使用します。
-```
-
-#### 1.5.1 Windows 側 IP の取得（WSL 内）
-
-```bash
-cat /etc/resolv.conf | grep nameserver
-```
-
-出力例：
-
-```
-nameserver 10.255.255.254
-```
-
 ## 1.5 ネットワークについて（LM Studio との疎通）
 
 最終的には
