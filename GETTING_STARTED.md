@@ -250,7 +250,7 @@ curl http://192.168.0.23:1234/v1/models
 
 ---
 
-> ⚠️ **IMPORTANT**
+> [!IMPORTANT]
 >
 > LM Studio を使わず、独自の方法で **Windows 側から LLM API を公開する場合**、
 > **`0.0.0.0` で待ち受ける設定はマジで危険なのでやめてください。**
