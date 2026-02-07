@@ -161,10 +161,19 @@ wsl
 #### 1.4.4 動作確認
 
 ```bash
-docker run hello-world
+docker ps
 ```
 
-メッセージが表示されれば成功です 🎉
+出力例：
+
+```
+CONTAINER ID   IMAGE   COMMAND   CREATED   STATUS   PORTS   NAMES
+```
+
+WSL に Docker をインストールした直後は、
+まだコンテナが存在しないため、この出力になるのが正しい挙動です。
+
+エラーが出なければ、**sudo なしで Docker コマンドを実行できています。**
 
 ---
 
