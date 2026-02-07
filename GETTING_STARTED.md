@@ -204,7 +204,7 @@ http://192.168.0.23:1234
 WSL2（Ubuntu）内で、**上で確認した IP アドレスを使って**疎通確認を行います。
 
 ```bash
-curl http://192.168.0.23:1234/v1/models
+curl http://192.168.0.23:1234
 ```
 
 ##### 判定
@@ -272,13 +272,10 @@ cp .env.example .env
 
 `.env` を編集し、以下を設定してください：
 
-* LLM API URL（例：`http://localhost:1234`）
-* Discord Bot Token
+* LLM API URL（例：`http://192.168.0.23:1234/v1/chat/completions`）
+* Discord webhook URL
 * GitHub Token
-* その他必須パラメータ
-
-> 💡 WSL2 からの `localhost` は Windows の `localhost` と直結しています
-> → LM Studio はそのまま `http://localhost:1234` で OK
+* その他の環境変数
 
 ---
 
