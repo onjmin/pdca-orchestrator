@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     jq \
     unzip \
     bash \
+    xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # ===== ランタイム環境の構築 =====
