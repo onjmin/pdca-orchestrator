@@ -11,18 +11,220 @@
 
 ---
 
-## 1. 動作環境の準備
+## 🧱 0. WSL2 & Docker 環境の構築（Windows ユーザー向け・必須）
 
-### ツールチェインのインストール
-プロジェクトのツールバージョンを固定するため、[Volta](https://volta.sh/) を使用します。
+> [!WARNING]
+> 本プロジェクトは **任意コード実行を伴う AI エージェント**を含みます。
+> **Windows ホスト環境を保護するため、WSL2 上での実行を必須**とします。
+> 以下の手順を **必ず最初に** 実施してください。
 
-1. Volta をインストール
-2. プロジェクトルートで以下を実行：
-   ```bash
-   volta install node
-   volta install pnpm
-   pnpm install
-   ```
+---
+
+### 0-1. BIOS（UEFI）で仮想化を有効にする【最重要】
+
+WSL2 は内部的に **軽量仮想マシン（Hyper-V）** を使用します。
+そのため **CPU 仮想化支援機能を BIOS で有効化**する必要があります。
+
+#### 手順
+
+1. PC を再起動
+2. 起動直後に以下のいずれかのキーを連打して BIOS / UEFI に入る
+
+   * `DEL` / `F2` / `F10` / `ESC`（メーカーにより異なる）
+3. 以下の項目を探して **Enabled** に設定
+
+**Intel CPU の場合**
+
+* `Intel Virtualization Technology`
+* `VT-x`
+
+**AMD CPU の場合**
+
+* `SVM Mode`
+* `AMD-V`
+
+4. 設定を保存して再起動（多くの場合 `F10`）
+
+> 💡 この設定を行わないと、後続の WSL2 セットアップは必ず失敗します。
+
+---
+
+### 0-2. WSL2 のインストール
+
+管理者権限の PowerShell または コマンドプロンプトで実行：
+
+```powershell
+wsl --install
+```
+
+インストール完了後、**必ず再起動**してください。
+
+再起動後、状態を確認：
+
+```powershell
+wsl --status
+```
+
+以下のように表示されれば OK です：
+
+```
+既定のバージョン: 2
+WSL2 はサポートされています
+```
+
+---
+
+### 0-3. Ubuntu のインストール
+
+WSL2 上で使用する Linux ディストリビューションとして Ubuntu を導入します。
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+初回起動時に：
+
+* Linux ユーザー名
+* パスワード
+
+を設定してください。
+
+以降の作業は **Ubuntu（WSL2）内のターミナル**で行います。
+
+---
+
+### 0-4. Docker Engine のインストール（Docker Desktop 不要）
+
+本プロジェクトでは **WSL2 内に直接 Docker Engine をインストール**します。
+（Docker Desktop は不要・非推奨）
+
+Ubuntu ターミナルで以下を実行：
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg
+```
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+```
+
+```bash
+echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+```
+
+```bash
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+```
+
+---
+
+### 0-5. Docker を sudo なしで使えるようにする
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+一度 **Ubuntu を終了して再起動**してください。
+
+```powershell
+wsl --shutdown
+```
+
+再度 Ubuntu を起動後、確認：
+
+```bash
+docker run hello-world
+```
+
+メッセージが表示されれば成功です 🎉
+
+---
+
+### 0-6. ネットワークについて（LM Studio との疎通）
+
+WSL2 からは **Windows の `localhost` に直接アクセス可能**です。
+
+そのため、Docker コンテナやエージェントから：
+
+```
+http://localhost:1234
+```
+
+で **Windows 側の LM Studio (OpenAI互換API)** に接続できます。
+
+特別なポートフォワード設定は不要です。
+
+---
+
+### ✅ ここまで終わったら
+
+* WSL2：隔離された Linux 実行環境
+* Docker：AI エージェント用の追加サンドボックス
+* Windows：LM Studio 実行環境
+
+という **安全かつ再現性の高い構成**が完成しています。
+
+この状態で、以降の手順（1. 動作環境の準備）に進んでください。
+
+---
+
+## 1. AI エージェント実行環境（Docker）
+
+本プロジェクトの AI エージェントは **必ず Docker コンテナ内で実行**してください。  
+ホスト（WSL2）上で `pnpm start` を直接実行することは禁止します。
+
+### 1-1. Docker イメージのビルド
+
+プロジェクトルートで以下を実行：
+
+```bash
+docker build -t kobito .
+````
+
+---
+
+### 1-2. 安全なコンテナ起動（必須）
+
+以下のコマンド **以外での起動は禁止**します。
+
+```bash
+docker run --rm -it \
+  --read-only \
+  --cap-drop ALL \
+  -v $(pwd):/app:rw \
+  kobito
+```
+
+#### この起動方法が行っている安全対策
+
+* `/` を **read-only** に設定
+* 書き込み可能なのは `/app` のみ
+* Linux capability をすべて削除
+* コンテナ終了時に状態を破棄（`--rm`）
+
+---
+
+### 1-3. コンテナ内での操作
+
+以降のすべての操作は **コンテナ内シェル**で行います。
+
+```bash
+pnpm install
+pnpm test:all
+pnpm start
+```
+
+> 💡 Volta / Node / pnpm / git はすべてコンテナ内に事前インストールされています。
 
 ---
 
