@@ -158,6 +158,13 @@ Effect: (The exact effect name from the list above)
 			rationale: rationale,
 		});
 
+		if (process.env.DEBUG_MODE === "1") {
+			console.log({
+				chosenEffect: found,
+				rationale: rationale,
+			});
+		}
+
 		return registry.get(found) ?? null;
 	},
 
