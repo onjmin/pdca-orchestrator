@@ -198,11 +198,6 @@ async function main() {
 				lastSelectedEffect = nextEffect;
 			}
 
-			// --- task.check を「状態変化の直後」に自動発火させる ---
-			if (nextEffect && taskImpactingEffects.has(nextEffect)) {
-				await orchestrator.dispatch(taskCheckEffect, currentTask);
-			}
-
 			// --- 進捗評価 ---
 			const afterProgress = taskStack.progress;
 			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
