@@ -3,46 +3,46 @@ import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
 import { type Task, taskStack } from "../core/stack-manager";
-import { aiTheorize } from "../effects/ai/theorize";
-import { fileCreate } from "../effects/file/create";
-import { fileGrep } from "../effects/file/grep";
-import { fileInsertAt } from "../effects/file/insert_at";
-import { fileListTree } from "../effects/file/list_tree";
-import { filePatch } from "../effects/file/patch";
-import { fileReadLines } from "../effects/file/read_lines";
-import { gitCheckout } from "../effects/git/checkout";
-import { gitClone } from "../effects/git/clone";
-import { githubCreatePullRequest } from "../effects/github/create-pull-request";
-import { shellExec } from "../effects/shell/exec";
-import { taskCheck } from "../effects/task/check";
-import { taskPlan } from "../effects/task/plan";
-import { taskSplit } from "../effects/task/split";
-import { taskWait } from "../effects/task/wait";
+import { aiTheorizeEffect } from "../effects/ai/theorize";
+import { fileCreateEffect } from "../effects/file/create";
+import { fileGrepEffect } from "../effects/file/grep";
+import { fileInsertAtEffect } from "../effects/file/insert_at";
+import { fileListTreeEffect } from "../effects/file/list_tree";
+import { filePatchEffect } from "../effects/file/patch";
+import { fileReadLinesEffect } from "../effects/file/read_lines";
+import { gitCheckoutEffect } from "../effects/git/checkout";
+import { gitCloneEffect } from "../effects/git/clone";
+import { githubCreatePullRequestEffect } from "../effects/github/create-pull-request";
+import { shellExecEffect } from "../effects/shell/exec";
+import { taskCheckEffect } from "../effects/task/check";
+import { taskPlanEffect } from "../effects/task/plan";
+import { taskSplitEffect } from "../effects/task/split";
+import { taskWaitEffect } from "../effects/task/wait";
 import type { EffectDefinition } from "../effects/types";
-import { webFetch } from "../effects/web/fetch";
-import { webSearch } from "../effects/web/search";
-import { webWikipedia } from "../effects/web/wikipedia";
+import { webFetchEffect } from "../effects/web/fetch";
+import { webSearchEffect } from "../effects/web/search";
+import { webWikipediaEffect } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const effects = [
-	aiTheorize,
-	fileCreate,
-	fileGrep,
-	fileInsertAt,
-	fileListTree,
-	filePatch,
-	fileReadLines,
-	gitCheckout,
-	gitClone,
-	githubCreatePullRequest,
-	shellExec,
-	taskCheck,
-	taskPlan,
-	taskSplit,
-	taskWait,
-	webFetch,
-	webSearch,
-	webWikipedia,
+	aiTheorizeEffect,
+	fileCreateEffect,
+	fileGrepEffect,
+	fileInsertAtEffect,
+	fileListTreeEffect,
+	filePatchEffect,
+	fileReadLinesEffect,
+	gitCheckoutEffect,
+	gitCloneEffect,
+	githubCreatePullRequestEffect,
+	shellExecEffect,
+	taskCheckEffect,
+	taskPlanEffect,
+	taskSplitEffect,
+	taskWaitEffect,
+	webFetchEffect,
+	webSearchEffect,
+	webWikipediaEffect,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
@@ -86,12 +86,12 @@ async function main() {
 
 	// 「状態を変えた」とみなす effect
 	const STATE_CHANGING_EFFECTS = new Set([
-		fileCreate.name,
-		fileInsertAt.name,
-		filePatch.name,
-		gitClone.name,
-		gitCheckout.name,
-		shellExec.name,
+		fileCreateEffect.name,
+		fileInsertAtEffect.name,
+		filePatchEffect.name,
+		gitCloneEffect.name,
+		gitCheckoutEffect.name,
+		shellExecEffect.name,
 	]);
 
 	const MAX_TURNS = 20;
@@ -119,7 +119,7 @@ async function main() {
 				 * task.plan はタスク開始時に必ず1回だけ実行する。
 				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
 				 */
-				nextEffectName = taskPlan.name;
+				nextEffectName = taskPlanEffect.name;
 				hasPlanned = true;
 			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
 				/**
@@ -127,7 +127,7 @@ async function main() {
 				 * これにより粒度過多タスクの分解はできるが、
 				 * 無限 split ループは防止される。
 				 */
-				nextEffectName = taskSplit.name;
+				nextEffectName = taskSplitEffect.name;
 				hasSplit = true;
 			} else {
 				/**
@@ -136,14 +136,14 @@ async function main() {
 				 */
 				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? null;
 
-				if (nextEffectName === taskCheck.name) {
+				if (nextEffectName === taskCheckEffect.name) {
 					nextEffectName = null;
 				}
 			}
 
 			// fallback（何も選ばれなかった場合）
 			if (!nextEffectName) {
-				nextEffectName = taskWait.name;
+				nextEffectName = taskWaitEffect.name;
 			}
 
 			// --- effect 実行 ---
@@ -155,7 +155,11 @@ async function main() {
 				 * task.check は検証であり思考ではない。
 				 * そのため「世界が変わった直後」にのみ実行する。
 				 */
-				await orchestrator.dispatch(registry[taskCheck.name], taskCheck.name, currentTask);
+				await orchestrator.dispatch(
+					registry[taskCheckEffect.name],
+					taskCheckEffect.name,
+					currentTask,
+				);
 			}
 
 			// --- 進捗評価 ---

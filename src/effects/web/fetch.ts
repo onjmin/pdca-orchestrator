@@ -21,7 +21,7 @@ export interface WebFetchData {
  * EFFECT: web.fetch
  * 指定したURLからコンテンツを取得します。
  */
-export const webFetch = createEffect<WebFetchArgs, WebFetchData>({
+export const webFetchEffect = createEffect<WebFetchArgs, WebFetchData>({
 	name: "web.fetch",
 	description:
 		"Fetch raw content from a URL. Useful for reading documentation or raw source files.",

@@ -16,7 +16,7 @@ export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
  * ファイルの新規作成、または全文上書きを行います。
  * 親ディレクトリが存在しない場合は自動的に作成します。
  */
-export const fileCreate = createEffect<FileCreateArgs, void>({
+export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 	name: "file.create",
 	description:
 		"Create a file with the specified content. If the file already exists, it will be completely overwritten. Parent directories are created automatically.",

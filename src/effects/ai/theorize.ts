@@ -30,7 +30,7 @@ export interface TheorizeData {
  * EFFECT: ai.theorize
  * 学術的理論に基づき、問題の構造的なモデルを策定します。
  */
-export const aiTheorize = createEffect<TheorizeArgs, TheorizeData>({
+export const aiTheorizeEffect = createEffect<TheorizeArgs, TheorizeData>({
 	name: "ai.theorize",
 	description:
 		"Formulate a formal theory or structural model for a problem based on academic principles.",

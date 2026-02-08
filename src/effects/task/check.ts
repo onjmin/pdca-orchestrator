@@ -19,7 +19,7 @@ export interface CheckData {
  * EFFECT: task.check
  * タスクの完了を判定します。
  */
-export const taskCheck = createEffect<CheckArgs, CheckData>({
+export const taskCheckEffect = createEffect<CheckArgs, CheckData>({
 	name: "task.check",
 	description:
 		"Evaluate the current task status against the Definition of Done (DoD). Use this to declare the task as 'passed' (completed) or 'failed' (needs more work).",

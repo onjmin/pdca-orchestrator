@@ -32,7 +32,7 @@ interface TavilyResponse {
  * EFFECT: web.search
  * 外部知識が必要な場合にインターネット検索を実行します。
  */
-export const webSearch = createEffect<WebSearchArgs, WebSearchData>({
+export const webSearchEffect = createEffect<WebSearchArgs, WebSearchData>({
 	name: "web.search",
 	description: "Search the web for external knowledge or latest documentation.",
 	inputSchema: {

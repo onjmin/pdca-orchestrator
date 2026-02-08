@@ -15,7 +15,7 @@ export type GitCloneArgs = z.infer<typeof GitCloneArgsSchema>;
  * EFFECT: git.clone
  * 指定されたリポジトリをセーフな作業ディレクトリにクローンします。
  */
-export const gitClone = createEffect<GitCloneArgs, void>({
+export const gitCloneEffect = createEffect<GitCloneArgs, void>({
 	name: "git.clone",
 	description: "Clone a repository into the safe workspace directory.",
 	inputSchema: {

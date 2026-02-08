@@ -16,7 +16,7 @@ export type FilePatchArgs = z.infer<typeof FilePatchArgsSchema>;
  * EFFECT: file.patch
  * 指定された行範囲 (startLine-endLine) を新しい内容で置換します。
  */
-export const filePatch = createEffect<FilePatchArgs, { path: string }>({
+export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 	name: "file.patch",
 	description:
 		"Replace a specific line range in a file with new content. Use read_lines first to identify line numbers.",
