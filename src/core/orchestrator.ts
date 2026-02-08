@@ -129,30 +129,41 @@ Effect: (The exact effect name from the list above)
 			return null;
 		}
 
-		// Rationale と Effect 名を抽出
+		// Rationale: の行を抽出
 		const rationaleMatch = rawContent.match(/Rationale:\s*(.*)/i);
-		const effectMatch = rawContent.match(/Effect:\s*(\w+)/i);
-
 		const rationale = rationaleMatch ? rationaleMatch[1].trim() : "No reasoning provided.";
-		const found = effectMatch
-			? effectMatch[1].trim()
-			: Array.from(registry.keys()).find((n) => rawContent.includes(n));
 
-		if (!found) {
+		// Effect: の行から、registryにある名前を正確に探す
+		const effectNames = Array.from(registry.keys());
+
+		// 1. まず "Effect: 名前" の形式で探す（大文字小文字無視、ハイフン等も許容）
+		const effectLineMatch = rawContent.match(/Effect:\s*([a-zA-Z0-9_-]+)/i);
+		let found = effectLineMatch ? effectLineMatch[1].trim() : null;
+
+		// 2. もし見つからなかった、または registry にない名前だった場合、
+		// 全文から registry にある名前を完全一致で探す
+		if (!found || !registry.has(found)) {
+			found =
+				effectNames.find((name) => {
+					// 単語境界 (\b) を使って、他の単語の一部として含まれている場合は無視する
+					const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+					return new RegExp(`\\b${escapedName}\\b`, "i").test(rawContent);
+				}) ?? null;
+		}
+
+		if (!found || !registry.has(found)) {
 			this.lastEffectResult = {
 				success: false,
-				summary: `Decision failed: Selected effect "${rawContent.substring(0, 50)}" is not available.`,
-				error: `AVAILABLE_EFFECTS: ${Array.from(registry.keys()).join(", ")}`,
+				summary: `Decision failed: Selected effect "${found || "unknown"}" is not available.`,
+				error: `AVAILABLE_EFFECTS: ${effectNames.join(", ")}`,
 			};
 			return null;
 		}
 
+		// Snapshot の記録（引数を整理した最新の型に合わせる）
 		this.recordControlSnapshot({
-			phase: "select",
-			taskTitle: currentTask.title,
-			chosenEffect: found ?? null,
+			chosenEffect: found,
 			rationale: rationale,
-			decisionSource: "model",
 		});
 
 		return registry.get(found) ?? null;
