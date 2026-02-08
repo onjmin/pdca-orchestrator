@@ -86,12 +86,12 @@ async function main() {
 
 	// 「状態を変えた」とみなす effect
 	const STATE_CHANGING_EFFECTS = new Set([
-		"file.create",
-		"file.insertAt",
-		"file.patch",
-		"git.clone",
-		"git.checkout",
-		"shell.exec",
+		fileCreate.name,
+		fileInsertAt.name,
+		filePatch.name,
+		gitClone.name,
+		gitCheckout.name,
+		shellExec.name,
 	]);
 
 	const MAX_TURNS = 20;
@@ -119,7 +119,7 @@ async function main() {
 				 * task.plan はタスク開始時に必ず1回だけ実行する。
 				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
 				 */
-				nextEffectName = "task.plan";
+				nextEffectName = taskPlan.name;
 				hasPlanned = true;
 			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
 				/**
@@ -127,7 +127,7 @@ async function main() {
 				 * これにより粒度過多タスクの分解はできるが、
 				 * 無限 split ループは防止される。
 				 */
-				nextEffectName = "task.split";
+				nextEffectName = taskSplit.name;
 				hasSplit = true;
 			} else {
 				/**
@@ -136,26 +136,26 @@ async function main() {
 				 */
 				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? null;
 
-				if (nextEffectName === "task.check") {
+				if (nextEffectName === taskCheck.name) {
 					nextEffectName = null;
 				}
 			}
 
 			// fallback（何も選ばれなかった場合）
 			if (!nextEffectName) {
-				nextEffectName = "task.wait";
+				nextEffectName = taskWait.name;
 			}
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
 
 			// --- task.check は「状態変化の直後」にのみ自動発火 ---
-			if (STATE_CHANGING_EFFECTS.has(nextEffectName)) {
+			if (nextEffectName && STATE_CHANGING_EFFECTS.has(nextEffectName)) {
 				/**
 				 * task.check は検証であり思考ではない。
 				 * そのため「世界が変わった直後」にのみ実行する。
 				 */
-				await orchestrator.dispatch(registry["task.check"], "task.check", currentTask);
+				await orchestrator.dispatch(registry[taskCheck.name], taskCheck.name, currentTask);
 			}
 
 			// --- 進捗評価 ---
