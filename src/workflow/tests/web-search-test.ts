@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { search } from "../../effects/web/search";
+import { webSearchEffect } from "../../effects/web/search";
 
 async function testWebSearch() {
 	console.log("--- Tavily Search Effect Test Start ---");
@@ -14,7 +14,7 @@ async function testWebSearch() {
 	const query = "Latest stable version of Hono framework and its features";
 	console.log(`[Test] Searching for: "${query}"...`);
 
-	const res = await search.handler({
+	const res = await webSearchEffect.handler({
 		query: query,
 	});
 
