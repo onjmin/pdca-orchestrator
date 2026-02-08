@@ -104,6 +104,9 @@ async function main() {
 
 	let nextEffect: AvailableEffect | null = null;
 
+	let lastSelectedEffect: AvailableEffect | null = null;
+	let sameEffectCount = 0;
+
 	try {
 		while (!taskStack.isEmpty()) {
 			totalTurns++;
@@ -119,59 +122,77 @@ async function main() {
 
 			const beforeProgress = taskStack.progress;
 
-			// --- effect 選択（完全に機械主導） ---
-			if (!hasPlanned) {
+			// --- effect 選択（機械主導 + 必要最小限の強制介入） ---
+			nextEffect = await (async () => {
+				// =========================
+				// 強制介入フェーズ（制御）
+				// =========================
+
 				/**
 				 * task.plan はタスク開始時に必ず1回だけ実行する。
-				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
+				 * 再計画は LLM の判断ではなく、制御レイヤの責務。
 				 */
-				nextEffect = taskPlanEffect;
-				hasPlanned = true;
-			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
-				/**
-				 * 初期停滞時のみ task.split を許可する。
-				 * これにより粒度過多タスクの分解はできるが、
-				 * 無限 split ループは防止される。
-				 */
-				nextEffect = taskSplitEffect;
-				hasSplit = true;
-			} else {
-				/**
-				 * 通常時は次の action 選択を LLM に委ねる。
-				 * ただし task.check はここでは選ばせない。
-				 */
-				nextEffect = (await orchestrator.selectNextEffect(registry)) ?? null;
-
-				// --- Update control snapshot constraints ---
-				// オーケストレーターが記録した「選択結果（ControlSnapshot）」に対して、
-				// index.ts 側で管理している制御状態を後入れで補足する。
-				// ここで渡す情報は LLM の判断材料ではなく、
-				// 次回 select フェーズでの「自己観測（Internal Observation）」として利用される。
-				orchestrator.updateLastSnapshotConstraints({
-					hasPlanned,
-					hasSplit,
-					stagnationCount,
-				});
-
-				if (nextEffect === taskCheckEffect) {
-					nextEffect = null;
+				if (!hasPlanned) {
+					hasPlanned = true;
+					return taskPlanEffect;
 				}
-			}
 
-			// fallback（何も選ばれなかった場合）
+				/**
+				 * 初期停滞時のみ task.split を強制する。
+				 * 粒度過多タスクの分解を許可するが、
+				 * 無限 split ループは構造的に防止される。
+				 */
+				if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
+					hasSplit = true;
+					return taskSplitEffect;
+				}
+
+				if (stagnationCount >= 3) {
+					return taskWaitEffect;
+				}
+
+				if (sameEffectCount >= 3) {
+					return taskSplitEffect;
+				}
+
+				// =========================
+				// 通常フェーズ（知能）
+				// =========================
+
+				// --- 通常フェーズ：LLM に委譲 ---
+				return orchestrator.selectNextEffect(registry) ?? null;
+			})();
+
 			if (!nextEffect) {
-				nextEffect = taskWaitEffect;
+				// 「この tick では行動が選べなかった。
+				// 状態は更新せず、次の制御ループへ
+				continue;
 			}
 
+			// --- Update control snapshot constraints ---
+			// オーケストレーターが記録した「選択結果（ControlSnapshot）」に対して、
+			// index.ts 側で管理している制御状態を後入れで補足する。
+			// ここで渡す情報は LLM の判断材料ではなく、
+			// 次回 select フェーズでの「自己観測（Internal Observation）」として利用される。
+			orchestrator.updateLastSnapshotConstraints({
+				hasPlanned,
+				hasSplit,
+				stagnationCount,
+				sameEffectCount,
+			});
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
 
-			// --- task.check は「状態変化の直後」にのみ自動発火 ---
+			// 連続で実行されたeffectをカウント
+			if (nextEffect === lastSelectedEffect) {
+				sameEffectCount++;
+			} else {
+				sameEffectCount = 1;
+				lastSelectedEffect = nextEffect;
+			}
+
+			// --- task.check を「状態変化の直後」に自動発火させる ---
 			if (nextEffect && taskImpactingEffects.has(nextEffect)) {
-				/**
-				 * task.check は検証であり思考ではない。
-				 * そのため「世界が変わった直後」にのみ実行する。
-				 */
 				await orchestrator.dispatch(taskCheckEffect, currentTask);
 			}
 
