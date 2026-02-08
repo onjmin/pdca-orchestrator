@@ -123,41 +123,42 @@ async function main() {
 
 			const beforeProgress = taskStack.progress;
 
-			// --- effect 選択（機械主導 + 必要最小限の強制介入） ---
 			nextEffect = await (async () => {
-				// =========================
-				// 強制介入フェーズ（制御）
-				// =========================
-
-				// タスク開始時のプランニング
+				// 1. プランニング（最優先）
 				if (!hasPlanned) {
 					hasPlanned = true;
 					return taskPlanEffect;
 				}
 
-				// 初期停滞による構造分解
-				if (!hasSplit && stagnationCount === 1 && taskStack.length === 1) {
+				// 2. 軽度の停滞：まずは現状を分析させる（Theorize）
+				if (stagnationCount === 2) {
+					console.log("⚠️ 停滞を検知。現状のボトルネックを推論させます。");
+					return aiTheorizeEffect;
+				}
+
+				// 3. 重度の停滞または単一タスクでの詰まり：構造分解（Split）
+				if (
+					!hasSplit &&
+					(stagnationCount >= 4 || (stagnationCount >= 2 && taskStack.length === 1))
+				) {
+					console.log("⚠️ 深刻な停滞。タスクを分割して再定義します。");
 					hasSplit = true;
 					return taskSplitEffect;
 				}
 
-				// 同一 effect ループからの脱出
-				if (!hasSplit && sameEffectCount >= 3) {
-					hasSplit = true;
-					return taskSplitEffect;
+				// 4. 同一行動のループ脱出：強制的に環境を観測させる
+				if (sameEffectCount >= 3) {
+					console.log("⚠️ ループを検知。強制的にファイルツリーを再確認させます。");
+					return fileListTreeEffect;
 				}
 
-				// =========================
-				// 通常フェーズ（知能）
-				// =========================
-
-				// --- 通常フェーズ：LLM に委譲 ---
-				return orchestrator.selectNextEffect(registry) ?? null;
+				// 通常フェーズ：LLM に委譲
+				return (await orchestrator.selectNextEffect(registry)) ?? null;
 			})();
 
 			if (!nextEffect) {
-				// 「この tick では行動が選べなかった。
-				// 状態は更新せず、次の制御ループへ
+				// このターンは行動が選べなかった。
+				// 状態は更新せず、次の制御ループへ。
 				continue;
 			}
 
