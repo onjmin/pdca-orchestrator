@@ -11,6 +11,18 @@ import { type Task, taskStack } from "./stack-manager";
 type GenericEffect = EffectDefinition<any, any>;
 
 export const orchestrator = {
+	lastControlSnapshot: null as ControlSnapshot | null,
+	controlHistory: [] as ControlSnapshot[],
+
+	updateLastSnapshotConstraints(patch: Partial<ControlSnapshot["constraints"]>) {
+		if (!this.lastControlSnapshot) return;
+
+		this.lastControlSnapshot.constraints = {
+			...this.lastControlSnapshot.constraints,
+			...patch,
+		};
+	},
+
 	// 最新のEffect execution結果を保持するバッファ
 	_lastResult: null as EffectResponse<unknown> | null,
 
@@ -54,6 +66,21 @@ Reasoning: ${currentTask.reasoning || "None"}
 			.map(([name, eff]) => `- ${name}: ${eff.description}`)
 			.join("\n");
 
+		const observationParts = [
+			"### External Observation (Last Effect Result)",
+			this.lastEffectResult,
+		];
+
+		if (this.lastControlSnapshot) {
+			observationParts.push(
+				"",
+				"### Internal Observation (Control Snapshot)",
+				snapshotToObservationText(this.lastControlSnapshot),
+			);
+		}
+
+		const observationText = observationParts.join("\n");
+
 		const prompt = `
 You are an autonomous agent.
 
@@ -63,8 +90,8 @@ ${taskInfo}
 ### Available Effects
 ${tools}
 
-### Observation from Previous Step
-${this.lastEffectResult}
+### Observation
+${observationText}
 
 ### Instruction
 Based on the current task, strategy, and observation, which effect should you execute next? 
@@ -96,6 +123,23 @@ Respond with only the effect name.
 			};
 			return null;
 		}
+
+		// --- Control Snapshot ---
+		// オーケストレーター内部の制御判断を記録するためのスナップショット。
+		// これは外部観測（EffectResult）ではなく、
+		// 次の意思決定やデバッグのための「自己状態の記録」である。
+		const snapshot: ControlSnapshot = {
+			phase: "select",
+			taskTitle: currentTask.title,
+			chosenEffect: found,
+			decisionSource: "model", // ルール強制やフォールバックではなく、選択フェーズでのモデル出力に基づく
+			constraints: {
+				// ここに hasPlanned / hasSplit / stagnationCount などを必要に応じて記録
+			},
+		};
+
+		this.lastControlSnapshot = snapshot;
+		this.controlHistory.push(snapshot);
 
 		return registry.get(found) ?? null;
 	},
@@ -230,4 +274,30 @@ async function savePromptLog(fileName: string, prompt: string) {
 	}
 
 	await fs.promises.writeFile(path.join(logDir, `${fileName}.txt`), prompt, "utf8");
+}
+
+type ControlSnapshot = {
+	phase: "select";
+	taskTitle: string;
+	chosenEffect: string | null;
+	decisionSource: "policy" | "model" | "fallback";
+	constraints: {
+		hasPlanned?: boolean;
+		hasSplit?: boolean;
+		stagnationCount?: number;
+	};
+};
+
+function snapshotToObservationText(s: ControlSnapshot): string {
+	if (!s.chosenEffect) {
+		return `No valid effect was selected in the previous step.`;
+	}
+
+	return `
+System selected effect "${s.chosenEffect}" during ${s.phase} phase.
+Constraints at that time:
+- hasPlanned: ${s.constraints.hasPlanned}
+- hasSplit: ${s.constraints.hasSplit}
+- stagnationCount: ${s.constraints.stagnationCount}
+`.trim();
 }
