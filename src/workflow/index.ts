@@ -116,6 +116,7 @@ async function main() {
 
 			if (currentTask !== lastTask) {
 				hasPlanned = false;
+				hasSplit = false;
 				stagnationCount = 0;
 				lastTask = currentTask;
 			}
@@ -128,30 +129,21 @@ async function main() {
 				// 強制介入フェーズ（制御）
 				// =========================
 
-				/**
-				 * task.plan はタスク開始時に必ず1回だけ実行する。
-				 * 再計画は LLM の判断ではなく、制御レイヤの責務。
-				 */
+				// タスク開始時のプランニング
 				if (!hasPlanned) {
 					hasPlanned = true;
 					return taskPlanEffect;
 				}
 
-				/**
-				 * 初期停滞時のみ task.split を強制する。
-				 * 粒度過多タスクの分解を許可するが、
-				 * 無限 split ループは構造的に防止される。
-				 */
-				if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
+				// 初期停滞による構造分解
+				if (!hasSplit && stagnationCount === 1 && taskStack.length === 1) {
 					hasSplit = true;
 					return taskSplitEffect;
 				}
 
-				if (stagnationCount >= 3) {
-					return taskWaitEffect;
-				}
-
-				if (sameEffectCount >= 3) {
+				// 同一 effect ループからの脱出
+				if (!hasSplit && sameEffectCount >= 3) {
+					hasSplit = true;
 					return taskSplitEffect;
 				}
 
