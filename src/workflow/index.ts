@@ -98,11 +98,12 @@ async function main() {
 	let stagnationCount = 0;
 	let totalTurns = 0;
 	let lastTask: Task | null = null;
+	let modificationCount = 0; // 変更系エフェクトの実行回数を追跡
 
 	const MAX_TURNS = 20;
+	const MODIFICATION_THRESHOLD = 3; // 何回変更したらチェックするか
 
 	let nextEffect: AvailableEffect | null = null;
-
 	let lastSelectedEffect: AvailableEffect | null = null;
 	let sameEffectCount = 0;
 
@@ -116,6 +117,7 @@ async function main() {
 			if (currentTask !== lastTask) {
 				hasPlanned = false;
 				stagnationCount = 0;
+				modificationCount = 0; // タスクが変わったらリセット
 				lastTask = currentTask;
 			}
 
@@ -123,7 +125,7 @@ async function main() {
 
 			// --- effect 選択（強制介入 + 記録） ---
 			nextEffect = await (async () => {
-				// --- 正常な初期動作 ---
+				// --- 強制介入: 毎タスク初回のプランフェーズ ---
 				if (!hasPlanned) {
 					hasPlanned = true;
 					orchestrator.recordControlSnapshot({
@@ -133,9 +135,18 @@ async function main() {
 					return taskPlanEffect;
 				}
 
+				// --- 強制介入: 変更が一定回数に達したら自動でタスク完了チェックを行う ---
+				if (modificationCount >= MODIFICATION_THRESHOLD) {
+					modificationCount = 0; // カウントリセット
+					orchestrator.recordControlSnapshot({
+						chosenEffect: taskCheckEffect.name,
+						rationale: `強制介入: ${MODIFICATION_THRESHOLD} consecutive modifications performed. Verifying progress.`,
+					});
+					return taskCheckEffect;
+				}
+
+				// --- 強制介入: 停滞時のトラブルシュート ---
 				if (stagnationCount >= 2) {
-					// 1. 「書く（変更）」ばかりで「読む（観測）」をしないことへの警告
-					// 停滞しているのに、直前が「環境を変える（Create/Split/Plan）」系だった場合
 					const isModification = [
 						fileCreateEffect.name,
 						taskSplitEffect.name,
@@ -143,10 +154,8 @@ async function main() {
 					].includes(lastSelectedEffect?.name ?? "");
 
 					if (isModification) {
-						// 「何を読むか」は指定せず、単に「推論（Theorize）して方針を立て直せ」とだけ命じる
-						// LLMが自発的に「あ、中身を読まないとダメだ」と気づくための余白を残す
 						const rationale =
-							"Modification without progress. Re-evaluate the situation through theorization before further changes.";
+							"Modification without progress. Re-evaluate the situation through theorization.";
 						orchestrator.recordControlSnapshot({
 							chosenEffect: aiTroubleshootEffect.name,
 							rationale,
@@ -156,41 +165,34 @@ async function main() {
 				}
 
 				if (stagnationCount >= 4) {
-					// 2. 深刻なスタック：メタ認知の強制リセット
-					// どんな手段も通じないなら、一度「何もするな、現状を言葉にしろ」とだけ命じる
-					const rationale =
-						"Critical stagnation. Abandon current strategy and perform a fundamental root cause analysis.";
 					orchestrator.recordControlSnapshot({
 						chosenEffect: aiTroubleshootEffect.name,
-						rationale,
+						rationale: "Critical stagnation. Performing root cause analysis.",
 					});
 					return aiTroubleshootEffect;
 				}
 
 				// 通常フェーズ：LLM に委譲
-				// ※ orchestrator.selectNextEffect の内部で既に recordControlSnapshot (decisionSource: "model") が呼ばれている想定
 				return (await orchestrator.selectNextEffect(registry)) ?? null;
 			})();
 
-			if (!nextEffect) {
-				// このターンは行動が選べなかった。
-				// 状態は更新せず、次の制御ループへ。
-				continue;
-			}
+			if (!nextEffect) continue;
 
 			// --- Update control snapshot constraints ---
-			// オーケストレーターが記録した「選択結果（ControlSnapshot）」に対して、
-			// index.ts 側で管理している制御状態を後入れで補足する。
-			// ここで渡す情報は LLM の判断材料ではなく、
-			// 次回 select フェーズでの「自己観測（Internal Observation）」として利用される。
 			orchestrator.updateLastSnapshotConstraints({
 				stagnationCount,
 				sameEffectCount,
 			});
+
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
 
-			// 連続で実行されたeffectをカウント
+			// 変更系エフェクトが実行されたらカウントアップ
+			if (taskImpactingEffects.has(nextEffect)) {
+				modificationCount++;
+			}
+
+			// 連続実行カウントの更新
 			if (nextEffect === lastSelectedEffect) {
 				sameEffectCount++;
 			} else {
@@ -202,7 +204,6 @@ async function main() {
 			const afterProgress = taskStack.progress;
 			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
 
-			// --- ターン上限 ---
 			if (totalTurns >= MAX_TURNS) {
 				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
 			}

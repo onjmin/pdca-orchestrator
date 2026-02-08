@@ -42,6 +42,23 @@ export const orchestrator = {
 	_lastResult: null as EffectResponse<unknown> | null,
 
 	/**
+	 * 外部（Effect結果）と内部（制御状態）の両方を統合した観測テキストを生成する
+	 */
+	getCombinedObservation(): string {
+		const parts = ["### External Observation (Last Effect Result)", this.lastEffectResult];
+
+		if (this.lastControlSnapshot) {
+			parts.push(
+				"",
+				"### Internal Observation (Control Context)",
+				snapshotToObservationText(this.lastControlSnapshot),
+			);
+		}
+
+		return parts.join("\n");
+	},
+
+	/**
 	 * 最新の実行結果をセットする (setter)
 	 */
 	set lastEffectResult(result: EffectResponse<unknown> | null) {
@@ -78,20 +95,7 @@ Reasoning: ${currentTask.reasoning || "None"}
 			.map(([name, eff]) => `- ${name}: ${eff.description}`)
 			.join("\n");
 
-		const observationParts = [
-			"### External Observation (Last Effect Result)",
-			this.lastEffectResult,
-		];
-
-		if (this.lastControlSnapshot) {
-			observationParts.push(
-				"",
-				"### Internal Observation (Control Snapshot)",
-				snapshotToObservationText(this.lastControlSnapshot),
-			);
-		}
-
-		const observationText = observationParts.join("\n");
+		const observationText = this.getCombinedObservation();
 
 		const prompt = `
 You are an autonomous agent.
@@ -168,9 +172,11 @@ Effect: (The exact effect name from the list above)
 	},
 
 	/**
-	 * 2. 選ばれたエフェクトを実行する（3ステップ構成）
+	 * 2. 選ばれたエフェクトを実行する
 	 */
 	async dispatch(effect: GenericEffect, task: Task): Promise<EffectResponse<unknown> | undefined> {
+		const observationText = this.getCombinedObservation();
+
 		// --- [STEP 2: Argument Generation] ---
 
 		let rawDataFieldName = "";
@@ -202,8 +208,8 @@ Description: ${effect.description}
 Task: ${task.title}
 DoD: ${task.dod}
 
-### Observation from Previous Step
-${this.lastEffectResult}
+### Observation (Previous Results & Your Internal Context)
+${observationText}
 
 ### Notice
 Some fields (e.g., large data content) are omitted from this schema and will be requested in the FOLLOW-UP step. 
@@ -213,7 +219,8 @@ Do NOT try to include them here.
 ${JSON.stringify(inputSchemaOmitted, null, 2)}
 
 ### Instruction
-Generate JSON arguments for the fields defined in the schema.
+Generate JSON arguments for the fields. 
+Refer to the Observation to ensure the arguments are appropriate for the current situation.
 Respond with ONLY the JSON object.
 `.trim();
 
@@ -239,10 +246,13 @@ Task: ${task.title}
 Executing Tool: ${effect.name}
 Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
 Other Arguments: ${JSON.stringify(args)}
-Latest Observation: ${this.lastEffectResult}
+
+### Observation (Previous Results & Your Internal Context)
+${observationText}
 
 ### Instruction
 Provide the ACTUAL content for the field "${rawDataFieldName}".
+Refer to the Observation to ensure the content are appropriate for the current situation.
 If this is code, provide the full source code.
 
 ### Rules
