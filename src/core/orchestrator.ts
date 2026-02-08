@@ -3,6 +3,7 @@ import path from "node:path";
 import type { EffectDefinition, EffectField, EffectResponse } from "../effects/types";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
+import { truncate } from "./utils";
 
 // 外部から受け入れるための汎用型（anyの使用をここだけに限定する）
 // 1. 各Effectの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
@@ -53,10 +54,7 @@ export const orchestrator = {
 	get lastEffectResult(): string {
 		if (!this._lastResult) return "No previous action.";
 
-		const raw = JSON.stringify(this._lastResult, null, 2);
-		const limit = 2000;
-
-		return raw.length > limit ? `${raw.substring(0, limit)}... (truncated)` : raw;
+		return truncate(JSON.stringify(this._lastResult, null, 2), 2000);
 	},
 
 	/**

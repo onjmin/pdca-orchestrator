@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { truncate } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const WebFetchArgsSchema = z.object({
@@ -85,14 +86,8 @@ export const webFetchEffect = createEffect<WebFetchArgs, WebFetchData>({
 
 			const content = await response.text();
 
-			const MAX_LENGTH = 100000;
-			const truncatedContent =
-				content.length > MAX_LENGTH
-					? `${content.substring(0, MAX_LENGTH)}\n... (content truncated)`
-					: content;
-
 			return effectResult.ok(`Successfully fetched from ${url} (Status: ${response.status})`, {
-				content: truncatedContent,
+				content: truncate(content, 1000),
 				status: response.status,
 			});
 		} catch (err) {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { llm } from "../../core/llm-client";
+import { truncate } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const TheorizeArgsSchema = z.object({
@@ -66,7 +67,7 @@ Formulate a rigorous theoretical model for the given problem. Focus on structura
 			}
 
 			return effectResult.ok("Theoretical model formulated successfully.", {
-				theory: result,
+				theory: truncate(result, 1000),
 				axioms: "Derived from the logical structure of the problem.",
 				implications: "Determines the constraints for subsequent implementation.",
 			});
