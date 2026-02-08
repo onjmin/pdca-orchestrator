@@ -14,6 +14,29 @@ export const orchestrator = {
 	lastControlSnapshot: null as ControlSnapshot | null,
 	controlHistory: [] as ControlSnapshot[],
 
+	/**
+	 * 制御判断の状態をスナップショットとして記録する
+	 */
+	recordControlSnapshot(params: {
+		phase: ControlSnapshot["phase"];
+		taskTitle: string;
+		chosenEffect: string | null;
+		rationale: string;
+		decisionSource: ControlSnapshot["decisionSource"];
+	}) {
+		const snapshot: ControlSnapshot = {
+			phase: params.phase,
+			taskTitle: params.taskTitle,
+			chosenEffect: params.chosenEffect,
+			rationale: params.rationale,
+			decisionSource: params.decisionSource,
+			constraints: {}, // index.ts 側の updateLastSnapshotConstraints で後から補足される
+		};
+
+		this.lastControlSnapshot = snapshot;
+		this.controlHistory.push(snapshot);
+	},
+
 	updateLastSnapshotConstraints(patch: Partial<ControlSnapshot["constraints"]>) {
 		if (!this.lastControlSnapshot) return;
 
@@ -95,7 +118,10 @@ ${observationText}
 
 ### Instruction
 Based on the current task, strategy, and observation, which effect should you execute next? 
-Respond with only the effect name.
+
+Respond in the following format:
+Rationale: (Your brief reasoning for this choice)
+Effect: (The exact effect name from the list above)
         `.trim();
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
@@ -112,8 +138,14 @@ Respond with only the effect name.
 			return null;
 		}
 
-		const effectNames = Array.from(registry.keys());
-		const found = effectNames.find((name) => rawContent.includes(name));
+		// Rationale と Effect 名を抽出
+		const rationaleMatch = rawContent.match(/Rationale:\s*(.*)/i);
+		const effectMatch = rawContent.match(/Effect:\s*(\w+)/i);
+
+		const rationale = rationaleMatch ? rationaleMatch[1].trim() : "No reasoning provided.";
+		const found = effectMatch
+			? effectMatch[1].trim()
+			: Array.from(registry.keys()).find((n) => rawContent.includes(n));
 
 		if (!found) {
 			this.lastEffectResult = {
@@ -124,22 +156,13 @@ Respond with only the effect name.
 			return null;
 		}
 
-		// --- Control Snapshot ---
-		// オーケストレーター内部の制御判断を記録するためのスナップショット。
-		// これは外部観測（EffectResult）ではなく、
-		// 次の意思決定やデバッグのための「自己状態の記録」である。
-		const snapshot: ControlSnapshot = {
+		this.recordControlSnapshot({
 			phase: "select",
 			taskTitle: currentTask.title,
-			chosenEffect: found,
-			decisionSource: "model", // ルール強制やフォールバックではなく、選択フェーズでのモデル出力に基づく
-			constraints: {
-				// ここに hasPlanned / hasSplit / stagnationCount などを必要に応じて記録
-			},
-		};
-
-		this.lastControlSnapshot = snapshot;
-		this.controlHistory.push(snapshot);
+			chosenEffect: found ?? null,
+			rationale: rationale,
+			decisionSource: "model",
+		});
 
 		return registry.get(found) ?? null;
 	},
@@ -280,6 +303,7 @@ type ControlSnapshot = {
 	phase: "select";
 	taskTitle: string;
 	chosenEffect: string | null;
+	rationale: string;
 	decisionSource: "policy" | "model" | "fallback";
 	constraints: {
 		hasPlanned?: boolean;
@@ -295,12 +319,15 @@ function snapshotToObservationText(s: ControlSnapshot): string {
 	}
 
 	return `
-Previously, the system executed "${s.chosenEffect}" during the ${s.phase} phase.
+Previously, you decided to execute "${s.chosenEffect}" for the following reason:
+> "${s.rationale}"
 
-System state at that time:
-- Planning phase has already been completed.
-- Task decomposition has ${s.constraints.hasSplit ? "already occurred" : "not occurred yet"}.
-- The system has failed to make progress for ${s.constraints.stagnationCount} consecutive steps.
-- The same action has been repeated ${s.constraints.sameEffectCount} times in a row.
+Internal System State at that time:
+- Planning: ${s.constraints.hasPlanned ? "Completed" : "Pending"}
+- Task Decomposition: ${s.constraints.hasSplit ? "Executed" : "Not yet executed"}
+- Stagnation: ${s.constraints.stagnationCount} steps without progress
+- Repetition: The same action has been repeated ${s.constraints.sameEffectCount} times
+
+[Note] If your previous rationale did NOT result in progress (as shown in the External Observation), you should reconsider your approach instead of repeating the same decision.
 `.trim();
 }

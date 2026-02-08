@@ -123,36 +123,81 @@ async function main() {
 
 			const beforeProgress = taskStack.progress;
 
+			// --- effect 選択（強制介入 + 記録） ---
 			nextEffect = await (async () => {
-				// 1. プランニング（最優先）
+				const phase = "select";
+				const taskTitle = currentTask.title;
+
+				// 1. 未計画なら計画
 				if (!hasPlanned) {
 					hasPlanned = true;
+					orchestrator.recordControlSnapshot({
+						phase,
+						taskTitle,
+						chosenEffect: taskPlanEffect.name,
+						rationale: "Initial planning is required for a new task.",
+						decisionSource: "policy", // システムによる強制
+					});
 					return taskPlanEffect;
 				}
 
-				// 2. 軽度の停滞：まずは現状を分析させる（Theorize）
-				if (stagnationCount === 2) {
-					console.log("⚠️ 停滞を検知。現状のボトルネックを推論させます。");
+				// 2. 「何もしていないのに分割/計画」を繰り返すループへの介入
+				if (stagnationCount >= 2 && sameEffectCount >= 1 && lastSelectedEffect === taskPlanEffect) {
+					const rationale =
+						"Stagnation detected during planning. Forcing theorization to break the loop of abstract task decomposition.";
+					console.log(`⚠️ ${rationale}`);
+					orchestrator.recordControlSnapshot({
+						phase,
+						taskTitle,
+						chosenEffect: aiTheorizeEffect.name,
+						rationale,
+						decisionSource: "policy",
+					});
 					return aiTheorizeEffect;
 				}
 
-				// 3. 重度の停滞または単一タスクでの詰まり：構造分解（Split）
-				if (
-					!hasSplit &&
-					(stagnationCount >= 4 || (stagnationCount >= 2 && taskStack.length === 1))
-				) {
-					console.log("⚠️ 深刻な停滞。タスクを分割して再定義します。");
-					hasSplit = true;
-					return taskSplitEffect;
+				// 3. 長期停滞時の「現実逃避」防止
+				if (stagnationCount >= 3) {
+					const isObservationEffect =
+						lastSelectedEffect &&
+						(
+							[fileListTreeEffect, fileReadLinesEffect, shellExecEffect] as AvailableEffect[]
+						).includes(lastSelectedEffect);
+
+					if (!isObservationEffect) {
+						const rationale =
+							"Continuous stagnation without environmental observation. Forcing a file tree check to ground the reasoning in reality.";
+						console.log(`⚠️ ${rationale}`);
+						orchestrator.recordControlSnapshot({
+							phase: "select",
+							taskTitle: currentTask.title,
+							chosenEffect: fileListTreeEffect.name,
+							rationale,
+							decisionSource: "policy",
+						});
+						return fileListTreeEffect;
+					}
 				}
 
-				// 4. 同一行動のループ脱出：強制的に環境を観測させる
-				if (sameEffectCount >= 3) {
-					console.log("⚠️ ループを検知。強制的にファイルツリーを再確認させます。");
-					return fileListTreeEffect;
+				// 4. 分割/計画への逃げを防止
+				if (stagnationCount >= 2) {
+					if (lastSelectedEffect === taskSplitEffect || lastSelectedEffect === taskPlanEffect) {
+						const rationale =
+							"Repetitive abstract operations without progress. Forcing theorization to identify concrete implementation steps.";
+						console.log(`⚠️ ${rationale}`);
+						orchestrator.recordControlSnapshot({
+							phase,
+							taskTitle,
+							chosenEffect: aiTheorizeEffect.name,
+							rationale,
+							decisionSource: "policy",
+						});
+						return aiTheorizeEffect;
+					}
 				}
 
 				// 通常フェーズ：LLM に委譲
+				// ※ orchestrator.selectNextEffect の内部で既に recordControlSnapshot (decisionSource: "model") が呼ばれている想定
 				return (await orchestrator.selectNextEffect(registry)) ?? null;
 			})();
 
