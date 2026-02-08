@@ -133,38 +133,38 @@ async function main() {
 					return taskPlanEffect;
 				}
 
-				// ループ・停滞への強力な横槍
 				if (stagnationCount >= 2) {
-					const isAbstractLoop =
-						lastSelectedEffect === taskPlanEffect || lastSelectedEffect === taskSplitEffect;
+					// 1. 「書く（変更）」ばかりで「読む（観測）」をしないことへの警告
+					// 停滞しているのに、直前が「環境を変える（Create/Split/Plan）」系だった場合
+					const isModification = [
+						fileCreateEffect.name,
+						taskSplitEffect.name,
+						taskPlanEffect.name,
+					].includes(lastSelectedEffect?.name ?? "");
 
-					if (isAbstractLoop) {
+					if (isModification) {
+						// 「何を読むか」は指定せず、単に「推論（Theorize）して方針を立て直せ」とだけ命じる
+						// LLMが自発的に「あ、中身を読まないとダメだ」と気づくための余白を残す
 						const rationale =
-							"Breaking the loop of abstract planning/splitting. Concrete theorization is required to move forward.";
+							"Modification without progress. Re-evaluate the situation through theorization before further changes.";
 						orchestrator.recordControlSnapshot({
 							chosenEffect: aiTheorizeEffect.name,
 							rationale,
 						});
 						return aiTheorizeEffect;
 					}
+				}
 
-					if (stagnationCount >= 3) {
-						const isObservation =
-							lastSelectedEffect &&
-							(
-								[fileListTreeEffect, fileReadLinesEffect, shellExecEffect] as AvailableEffect[]
-							).includes(lastSelectedEffect);
-
-						if (!isObservation) {
-							const rationale =
-								"Stagnation continues. Forcing environmental observation to reconcile internal model with reality.";
-							orchestrator.recordControlSnapshot({
-								chosenEffect: fileListTreeEffect.name,
-								rationale,
-							});
-							return fileListTreeEffect;
-						}
-					}
+				if (stagnationCount >= 4) {
+					// 2. 深刻なスタック：メタ認知の強制リセット
+					// どんな手段も通じないなら、一度「何もするな、現状を言葉にしろ」とだけ命じる
+					const rationale =
+						"Critical stagnation. Abandon current strategy and perform a fundamental root cause analysis.";
+					orchestrator.recordControlSnapshot({
+						chosenEffect: aiTheorizeEffect.name,
+						rationale,
+					});
+					return aiTheorizeEffect;
 				}
 
 				// 通常フェーズ：LLM に委譲
