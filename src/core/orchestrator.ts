@@ -24,7 +24,7 @@ export const orchestrator = {
 	 */
 	get oneTimeInstruction() {
 		return this._oneTimeInstruction
-			? `### Special Instruction (Priority)\n**${this.oneTimeInstruction}**\n`
+			? `### Special Instruction (Priority)\n**${this._oneTimeInstruction}**\n`
 			: "";
 	},
 
