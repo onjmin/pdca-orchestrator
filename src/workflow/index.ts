@@ -116,6 +116,7 @@ async function main() {
 		while (!taskStack.isEmpty()) {
 			totalTurns++;
 			subTaskTurns++;
+			orchestrator.oneTimeInstruction = "";
 
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
@@ -127,14 +128,23 @@ async function main() {
 			}
 
 			nextEffect = await (async () => {
-				// 強制介入: 1ターン目は観察系Effectsを選出
+				// 強制介入: 1ターン目は現状把握
 				if (subTaskTurns === 1) {
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+				}
+
+				// 強制介入: 2ターン目はDoDの妥当性を確認させる
+				if (subTaskTurns === 2) {
+					orchestrator.oneTimeInstruction =
+						"Evaluate if the current DoD is simple enough to be completed in a single step. If it feels complex or multi-faceted, use 'task.split' to break it down into smaller, manageable sub-tasks.";
+					// ここでは全Registryから選ばせる（AIが「分割不要」と判断すれば通常通り進めるため）
+					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
 				// 強制介入: 前ターンが変更系Effectsであれば、観察系Effectsを選出
 				if (lastSelectedEffect && mutatingEffects.has(lastSelectedEffect)) {
 					observationsAfterMutating++;
+					orchestrator.oneTimeInstruction = `Verify that the changes made by '${lastSelectedEffect.name}' were applied correctly and that the results align with the expected state.`;
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
 				}
 

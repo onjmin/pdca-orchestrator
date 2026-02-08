@@ -11,7 +11,27 @@ import { truncate } from "./utils";
 // biome-ignore lint/suspicious/noExplicitAny: カタログ形式での一括管理と実行時の動的注入を両立するための意図的な型消去
 type GenericEffect = EffectDefinition<any, any>;
 
+type ControlSnapshot = {
+	chosenEffect: string | null;
+	rationale: string;
+};
+
 export const orchestrator = {
+	_oneTimeInstruction: null as string | null,
+
+	/**
+	 * 1ターン限定の特別指示をセットする
+	 */
+	get oneTimeInstruction() {
+		return this.oneTimeInstruction
+			? `### Special Instruction (Priority)\n**${this.oneTimeInstruction}**\n`
+			: "";
+	},
+
+	set oneTimeInstruction(instruction: string) {
+		this.oneTimeInstruction = instruction;
+	},
+
 	lastControlSnapshot: null as ControlSnapshot | null,
 	controlHistory: [] as ControlSnapshot[],
 
@@ -28,25 +48,32 @@ export const orchestrator = {
 		this.controlHistory.push(snapshot);
 	},
 
-	// 最新のEffect execution結果を保持するバッファ
-	_lastResult: null as EffectResponse<unknown> | null,
-
 	/**
 	 * 外部（Effect結果）と内部（制御状態）の両方を統合した観測テキストを生成する
 	 */
 	getCombinedObservation(): string {
 		const parts = ["### External Observation (Last Effect Result)", this.lastEffectResult];
 
+		const { lastControlSnapshot } = this;
+
 		if (this.lastControlSnapshot) {
 			parts.push(
 				"",
 				"### Internal Observation (Control Context)",
-				snapshotToObservationText(this.lastControlSnapshot),
+				lastControlSnapshot?.chosenEffect
+					? `
+Your previous action: "${lastControlSnapshot.chosenEffect}"
+Your previous rationale: "${lastControlSnapshot.rationale}"
+`.trim()
+					: "In the previous step, no action was taken.",
 			);
 		}
 
 		return parts.join("\n");
 	},
+
+	// 最新のEffect execution結果を保持するバッファ
+	_lastResult: null as EffectResponse<unknown> | null,
 
 	/**
 	 * 最新の実行結果をセットする (setter)
@@ -100,7 +127,8 @@ ${tools}
 ${observationText}
 
 ### Instruction
-Based on the current task, strategy, and observation, which effect should you execute next? 
+Based on the current task, strategy, and observation, which effect should you execute next?
+${this.oneTimeInstruction}
 
 Respond in the following format:
 Rationale: (Your brief reasoning for this choice)
@@ -304,20 +332,4 @@ async function savePromptLog(fileName: string, prompt: string) {
 	}
 
 	await fs.promises.writeFile(path.join(logDir, `${fileName}.txt`), prompt, "utf8");
-}
-
-type ControlSnapshot = {
-	chosenEffect: string | null;
-	rationale: string;
-};
-
-function snapshotToObservationText(s: ControlSnapshot): string {
-	if (!s.chosenEffect) {
-		return "In the previous step, no action was taken.";
-	}
-
-	return `
-Your previous action: "${s.chosenEffect}"
-Your previous rationale: "${s.rationale}"
-`.trim();
 }
