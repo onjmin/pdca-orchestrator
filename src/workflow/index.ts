@@ -2,7 +2,7 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
-import { taskStack } from "../core/stack-manager";
+import { type Task, taskStack } from "../core/stack-manager";
 import { theorize } from "../effects/ai/theorize";
 import { create } from "../effects/file/create";
 import { grep } from "../effects/file/grep";
@@ -25,20 +25,16 @@ import { wikipedia } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const effects = [
-	// 1. 認知：現在の状況・場所を知る（まずここを見ろ）
 	listTree,
 	check,
 
-	// 2. 準備：作業の土台を整える（土俵に上がる）
-	clone, // リポジトリを持ってくる
-	checkout, // 適切なブランチに切り替える
+	clone,
+	checkout,
 
-	// 3. 思考：どう動くかを計画する
 	plan,
 	split,
 	theorize,
 
-	// 4. 実行：実際に手を動かす（メインの手足）
 	grep,
 	readLines,
 	create,
@@ -47,13 +43,11 @@ const effects = [
 	exec,
 	wait,
 
-	// 5. 補完：外部知識を取り入れる
 	webSearch,
 	wikipedia,
 	fetchContent,
 
-	// 6. 報告：成果を提出し、完了させる
-	createPullRequest, // 最も重要な「仕事の出口」
+	createPullRequest,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
@@ -63,7 +57,7 @@ const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.from
 async function main() {
 	console.log("--- 小人が起きました ---");
 
-	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
+	// 初期タスク読み込み
 	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let initialTask = {
 		title: "Initial Goal",
@@ -76,9 +70,7 @@ async function main() {
 		const parts = rawContent.split("---").map((s) => s.trim());
 
 		if (parts.length !== 3) {
-			throw new Error(
-				`⚠️ GOAL file format is invalid. Found ${parts.length} parts, but exactly 3 parts separated by '---' are required.`,
-			);
+			throw new Error(`⚠️ GOAL file format is invalid. Found ${parts.length} parts.`);
 		}
 
 		const [title, description, dod] = parts;
@@ -90,23 +82,97 @@ async function main() {
 
 	taskStack.push(initialTask);
 
-	// 2. 初手のエフェクトを選択
-	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+	// ---- 制御用状態 ----
+	let hasPlanned = false;
+	let hasSplit = false;
+	let stagnationCount = 0;
+	let totalTurns = 0;
+	let lastTask: Task | null = null;
 
-	// --- メインループ ---
+	// 「状態を変えた」とみなす effect
+	const STATE_CHANGING_EFFECTS = new Set([
+		"file.create",
+		"file.insertAt",
+		"file.patch",
+		"git.clone",
+		"git.checkout",
+		"shell.exec",
+	]);
+
+	const MAX_TURNS = 20;
+
+	let nextEffectName: string | null = null;
+
 	try {
 		while (!taskStack.isEmpty()) {
+			totalTurns++;
+
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
-			// 3. 選択されたエフェクトを実行
+			if (currentTask !== lastTask) {
+				hasPlanned = false;
+				stagnationCount = 0;
+				lastTask = currentTask;
+			}
+
+			const beforeProgress = taskStack.progress;
+
+			// --- effect 選択（完全に機械主導） ---
+			if (!hasPlanned) {
+				/**
+				 * task.plan はタスク開始時に必ず1回だけ実行する。
+				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
+				 */
+				nextEffectName = "task.plan";
+				hasPlanned = true;
+			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
+				/**
+				 * 初期停滞時のみ task.split を許可する。
+				 * これにより粒度過多タスクの分解はできるが、
+				 * 無限 split ループは防止される。
+				 */
+				nextEffectName = "task.split";
+				hasSplit = true;
+			} else {
+				/**
+				 * 通常時は次の action 選択を LLM に委ねる。
+				 * ただし task.check はここでは選ばせない。
+				 */
+				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? null;
+
+				if (nextEffectName === "task.check") {
+					nextEffectName = null;
+				}
+			}
+
+			// fallback（何も選ばれなかった場合）
+			if (!nextEffectName) {
+				nextEffectName = "task.wait";
+			}
+
+			// --- effect 実行 ---
 			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
 
-			// 4. 次の一手をLLMに再選択させる
-			nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+			// --- task.check は「状態変化の直後」にのみ自動発火 ---
+			if (STATE_CHANGING_EFFECTS.has(nextEffectName)) {
+				/**
+				 * task.check は検証であり思考ではない。
+				 * そのため「世界が変わった直後」にのみ実行する。
+				 */
+				await orchestrator.dispatch(registry["task.check"], "task.check", currentTask);
+			}
+
+			// --- 進捗評価 ---
+			const afterProgress = taskStack.progress;
+			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
+
+			// --- ターン上限 ---
+			if (totalTurns >= MAX_TURNS) {
+				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
+			}
 		}
 	} finally {
-		// 5. 後片付け (正常終了・異常終了に関わらず実行)
 		console.log("--- 小人が道具を片付けて寝ます ---");
 	}
 }
