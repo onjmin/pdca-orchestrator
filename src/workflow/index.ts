@@ -105,7 +105,7 @@ async function main() {
 
 	let totalTurns = 0;
 	let subTaskTurns = 0;
-	const MAX_TURNS = 32;
+	const MAX_TURNS = 64;
 
 	let observationsAfterMutating = 0;
 
@@ -117,6 +117,10 @@ async function main() {
 			totalTurns++;
 			subTaskTurns++;
 			orchestrator.oneTimeInstruction = "";
+
+			if (process.env.DEBUG_MODE === "1") {
+				console.log(`${totalTurns}ターン目`);
+			}
 
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
@@ -133,8 +137,8 @@ async function main() {
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
 				}
 
-				// 強制介入: 2ターン目はDoDの妥当性を確認させる
-				if (subTaskTurns === 2) {
+				// 強制介入: DoDチェック失敗時、タスク分割を検討させる
+				if (subTaskTurns !== 1 && lastSelectedEffect === taskCheckEffect) {
 					orchestrator.oneTimeInstruction =
 						"Evaluate if the current DoD is simple enough to be completed in a single step. If it feels complex or multi-faceted, use 'task.split' to break it down into smaller, manageable sub-tasks.";
 					// ここでは全Registryから選ばせる（AIが「分割不要」と判断すれば通常通り進めるため）
