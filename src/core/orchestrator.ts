@@ -22,20 +22,10 @@ export const orchestrator = {
 		const snapshot: ControlSnapshot = {
 			chosenEffect: params.chosenEffect,
 			rationale: params.rationale,
-			constraints: {}, // index.ts 側の updateLastSnapshotConstraints で後から補足される
 		};
 
 		this.lastControlSnapshot = snapshot;
 		this.controlHistory.push(snapshot);
-	},
-
-	updateLastSnapshotConstraints(patch: Partial<ControlSnapshot["constraints"]>) {
-		if (!this.lastControlSnapshot) return;
-
-		this.lastControlSnapshot.constraints = {
-			...this.lastControlSnapshot.constraints,
-			...patch,
-		};
 	},
 
 	// 最新のEffect execution結果を保持するバッファ
@@ -312,10 +302,6 @@ async function savePromptLog(fileName: string, prompt: string) {
 type ControlSnapshot = {
 	chosenEffect: string | null;
 	rationale: string;
-	constraints: {
-		stagnationCount?: number;
-		sameEffectCount?: number;
-	};
 };
 
 function snapshotToObservationText(s: ControlSnapshot): string {
@@ -323,15 +309,8 @@ function snapshotToObservationText(s: ControlSnapshot): string {
 		return "In the previous step, no action was taken.";
 	}
 
-	// 停滞状況をシンプルに言語化
-	const isStagnating = (s.constraints.stagnationCount ?? 0) > 0;
-	const stagnationWarning = isStagnating
-		? `\n[Warning] This approach has not progressed for ${s.constraints.stagnationCount} steps.`
-		: "";
-
 	return `
 Your previous action: "${s.chosenEffect}"
 Your previous rationale: "${s.rationale}"
-${stagnationWarning}
 `.trim();
 }

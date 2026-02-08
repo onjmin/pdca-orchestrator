@@ -95,33 +95,33 @@ async function main() {
 
 	// ---- 制御用状態 ----
 	let hasPlanned = false;
-	let stagnationCount = 0;
-	let totalTurns = 0;
 	let lastTask: Task | null = null;
-	let modificationCount = 0; // 変更系エフェクトの実行回数を追跡
 
+	let totalTurns = 0;
+	let subTaskTurns = 0;
 	const MAX_TURNS = 20;
-	const MODIFICATION_THRESHOLD = 3; // 何回変更したらチェックするか
+
+	let modificationCount = 0;
+	let sameEffectCount = 0;
 
 	let nextEffect: AvailableEffect | null = null;
 	let lastSelectedEffect: AvailableEffect | null = null;
-	let sameEffectCount = 0;
 
 	try {
 		while (!taskStack.isEmpty()) {
 			totalTurns++;
+			subTaskTurns++;
 
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
 			if (currentTask !== lastTask) {
 				hasPlanned = false;
-				stagnationCount = 0;
-				modificationCount = 0; // タスクが変わったらリセット
 				lastTask = currentTask;
+				subTaskTurns = 1;
+				modificationCount = 0;
+				sameEffectCount = 0;
 			}
-
-			const beforeProgress = taskStack.progress;
 
 			// --- effect 選択（強制介入 + 記録） ---
 			nextEffect = await (async () => {
@@ -136,17 +136,17 @@ async function main() {
 				}
 
 				// --- 強制介入: 変更が一定回数に達したら自動でタスク完了チェックを行う ---
-				if (modificationCount >= MODIFICATION_THRESHOLD) {
-					modificationCount = 0; // カウントリセット
+				if (modificationCount >= 3) {
+					modificationCount = 0; // ループ防止：介入時にリセット
 					orchestrator.recordControlSnapshot({
-						chosenEffect: taskCheckEffect.name,
-						rationale: `強制介入: ${MODIFICATION_THRESHOLD} consecutive modifications performed. Verifying progress.`,
+						chosenEffect: aiTroubleshootEffect.name,
+						rationale: "強制介入: Stagnation detected. Re-evaluating the situation and strategy.",
 					});
-					return taskCheckEffect;
+					return aiTroubleshootEffect;
 				}
 
 				// --- 強制介入: 停滞時のトラブルシュート ---
-				if (stagnationCount >= 2) {
+				if (sameEffectCount >= 3) {
 					const isModification = [
 						fileCreateEffect.name,
 						taskSplitEffect.name,
@@ -164,7 +164,7 @@ async function main() {
 					}
 				}
 
-				if (stagnationCount >= 4) {
+				if (subTaskTurns === 6) {
 					orchestrator.recordControlSnapshot({
 						chosenEffect: aiTroubleshootEffect.name,
 						rationale: "Critical stagnation. Performing root cause analysis.",
@@ -177,12 +177,6 @@ async function main() {
 			})();
 
 			if (!nextEffect) continue;
-
-			// --- Update control snapshot constraints ---
-			orchestrator.updateLastSnapshotConstraints({
-				stagnationCount,
-				sameEffectCount,
-			});
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
@@ -199,10 +193,6 @@ async function main() {
 				sameEffectCount = 1;
 				lastSelectedEffect = nextEffect;
 			}
-
-			// --- 進捗評価 ---
-			const afterProgress = taskStack.progress;
-			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
 
 			if (totalTurns >= MAX_TURNS) {
 				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
