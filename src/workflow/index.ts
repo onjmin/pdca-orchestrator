@@ -57,8 +57,6 @@ const mutatingEffects = new Set<AllEffect>([
 	filePatchEffect,
 	gitCloneEffect,
 	gitCheckoutEffect,
-	shellExecEffect,
-	githubCreatePullRequestEffect,
 	taskWaitEffect, // 状態が変化する可能性があるためこちらに分類
 ]);
 
@@ -70,7 +68,6 @@ const observationEffects = new Set<AllEffect>([
 	fileGrepEffect,
 	fileListTreeEffect,
 	fileReadLinesEffect,
-	shellExecEffect,
 	webFetchEffect,
 ]);
 const observationRegistry = new Map([...observationEffects].map((e) => [e.name, e]));
