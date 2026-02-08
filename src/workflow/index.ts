@@ -25,20 +25,16 @@ import { wikipedia } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const effects = [
-	// 1. 認知：現在の状況・場所を知る（まずここを見ろ）
 	listTree,
 	check,
 
-	// 2. 準備：作業の土台を整える（土俵に上がる）
-	clone, // リポジトリを持ってくる
-	checkout, // 適切なブランチに切り替える
+	clone,
+	checkout,
 
-	// 3. 思考：どう動くかを計画する
 	plan,
 	split,
 	theorize,
 
-	// 4. 実行：実際に手を動かす（メインの手足）
 	grep,
 	readLines,
 	create,
@@ -47,13 +43,11 @@ const effects = [
 	exec,
 	wait,
 
-	// 5. 補完：外部知識を取り入れる
 	webSearch,
 	wikipedia,
 	fetchContent,
 
-	// 6. 報告：成果を提出し、完了させる
-	createPullRequest, // 最も重要な「仕事の出口」
+	createPullRequest,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
@@ -63,7 +57,7 @@ const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.from
 async function main() {
 	console.log("--- 小人が起きました ---");
 
-	// 1. 初手のタスク投入 (GOAL ファイルから読み込む)
+	// 初期タスク読み込み
 	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let initialTask = {
 		title: "Initial Goal",
@@ -76,9 +70,7 @@ async function main() {
 		const parts = rawContent.split("---").map((s) => s.trim());
 
 		if (parts.length !== 3) {
-			throw new Error(
-				`⚠️ GOAL file format is invalid. Found ${parts.length} parts, but exactly 3 parts separated by '---' are required.`,
-			);
+			throw new Error(`⚠️ GOAL file format is invalid. Found ${parts.length} parts.`);
 		}
 
 		const [title, description, dod] = parts;
@@ -90,23 +82,55 @@ async function main() {
 
 	taskStack.push(initialTask);
 
-	// 2. 初手のエフェクトを選択
+	// ---- 制御用状態 ----
+	let hasPlanned = false;
+	let stagnationCount = 0;
+	let totalTurns = 0;
+	let lastEffectName: string | null = null;
+
+	const MAX_STAGNATION = 2;
+	const MAX_TURNS = 20;
+
 	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
 
-	// --- メインループ ---
 	try {
 		while (!taskStack.isEmpty()) {
+			totalTurns++;
+
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
-			// 3. 選択されたエフェクトを実行
-			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
+			const beforeProgress = taskStack.progress;
 
-			// 4. 次の一手をLLMに再選択させる
-			nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+			// --- effect 選択（機械主導） ---
+			if (!hasPlanned) {
+				// タスク開始時に必ず全体計画を立てさせる
+				nextEffectName = "task.plan";
+				hasPlanned = true;
+			} else if (stagnationCount === 1 && taskStack.length === 1) {
+				// 停滞初期はタスク構造を見直す
+				nextEffectName = "task.split";
+			} else if (
+				lastEffectName !== "task.check" &&
+				(stagnationCount >= MAX_STAGNATION || totalTurns >= MAX_TURNS)
+			) {
+				// 無限ループ防止の最終診断
+				nextEffectName = "task.check";
+				stagnationCount = 0;
+			} else {
+				// 停滞していない間は LLM に委ねる
+				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+			}
+
+			// --- effect 実行 ---
+			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
+			lastEffectName = nextEffectName;
+
+			// --- 進捗評価 ---
+			const afterProgress = taskStack.progress;
+			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
 		}
 	} finally {
-		// 5. 後片付け (正常終了・異常終了に関わらず実行)
 		console.log("--- 小人が道具を片付けて寝ます ---");
 	}
 }
