@@ -84,14 +84,24 @@ async function main() {
 
 	// ---- 制御用状態 ----
 	let hasPlanned = false;
+	let hasSplit = false;
 	let stagnationCount = 0;
 	let totalTurns = 0;
-	let lastEffectName: string | null = null;
+	let lastTask: Task | null = null;
 
-	const MAX_STAGNATION = 2;
+	// 「状態を変えた」とみなす effect
+	const STATE_CHANGING_EFFECTS = new Set([
+		"file.create",
+		"file.insertAt",
+		"file.patch",
+		"git.clone",
+		"git.checkout",
+		"shell.exec",
+	]);
+
 	const MAX_TURNS = 20;
 
-	let nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+	let nextEffectName: string | null = null;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -100,35 +110,67 @@ async function main() {
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
+			if (currentTask !== lastTask) {
+				hasPlanned = false;
+				stagnationCount = 0;
+				lastTask = currentTask;
+			}
+
 			const beforeProgress = taskStack.progress;
 
-			// --- effect 選択（機械主導） ---
+			// --- effect 選択（完全に機械主導） ---
 			if (!hasPlanned) {
-				// タスク開始時に必ず全体計画を立てさせる
+				/**
+				 * task.plan はタスク開始時に必ず1回だけ実行する。
+				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
+				 */
 				nextEffectName = "task.plan";
 				hasPlanned = true;
-			} else if (stagnationCount === 1 && taskStack.length === 1) {
-				// 停滞初期はタスク構造を見直す
+			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
+				/**
+				 * 初期停滞時のみ task.split を許可する。
+				 * これにより粒度過多タスクの分解はできるが、
+				 * 無限 split ループは防止される。
+				 */
 				nextEffectName = "task.split";
-			} else if (
-				lastEffectName !== "task.check" &&
-				(stagnationCount >= MAX_STAGNATION || totalTurns >= MAX_TURNS)
-			) {
-				// 無限ループ防止の最終診断
-				nextEffectName = "task.check";
-				stagnationCount = 0;
+				hasSplit = true;
 			} else {
-				// 停滞していない間は LLM に委ねる
-				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? "task.check";
+				/**
+				 * 通常時は次の action 選択を LLM に委ねる。
+				 * ただし task.check はここでは選ばせない。
+				 */
+				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? null;
+
+				if (nextEffectName === "task.check") {
+					nextEffectName = null;
+				}
+			}
+
+			// fallback（何も選ばれなかった場合）
+			if (!nextEffectName) {
+				nextEffectName = "task.wait";
 			}
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
-			lastEffectName = nextEffectName;
+
+			// --- task.check は「状態変化の直後」にのみ自動発火 ---
+			if (STATE_CHANGING_EFFECTS.has(nextEffectName)) {
+				/**
+				 * task.check は検証であり思考ではない。
+				 * そのため「世界が変わった直後」にのみ実行する。
+				 */
+				await orchestrator.dispatch(registry["task.check"], "task.check", currentTask);
+			}
 
 			// --- 進捗評価 ---
 			const afterProgress = taskStack.progress;
 			stagnationCount = afterProgress === beforeProgress ? stagnationCount + 1 : 0;
+
+			// --- ターン上限 ---
+			if (totalTurns >= MAX_TURNS) {
+				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
+			}
 		}
 	} finally {
 		console.log("--- 小人が道具を片付けて寝ます ---");
