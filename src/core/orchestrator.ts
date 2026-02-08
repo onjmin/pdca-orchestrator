@@ -285,19 +285,22 @@ type ControlSnapshot = {
 		hasPlanned?: boolean;
 		hasSplit?: boolean;
 		stagnationCount?: number;
+		sameEffectCount?: number;
 	};
 };
 
 function snapshotToObservationText(s: ControlSnapshot): string {
 	if (!s.chosenEffect) {
-		return `No valid effect was selected in the previous step.`;
+		return `In the previous step, no executable action was selected.`;
 	}
 
 	return `
-System selected effect "${s.chosenEffect}" during ${s.phase} phase.
-Constraints at that time:
-- hasPlanned: ${s.constraints.hasPlanned}
-- hasSplit: ${s.constraints.hasSplit}
-- stagnationCount: ${s.constraints.stagnationCount}
+Previously, the system executed "${s.chosenEffect}" during the ${s.phase} phase.
+
+System state at that time:
+- Planning phase has already been completed.
+- Task decomposition has ${s.constraints.hasSplit ? "already occurred" : "not occurred yet"}.
+- The system has failed to make progress for ${s.constraints.stagnationCount} consecutive steps.
+- The same action has been repeated ${s.constraints.sameEffectCount} times in a row.
 `.trim();
 }
