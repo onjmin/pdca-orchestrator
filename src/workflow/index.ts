@@ -142,6 +142,17 @@ async function main() {
 				 */
 				nextEffect = (await orchestrator.selectNextEffect(registry)) ?? null;
 
+				// --- Update control snapshot constraints ---
+				// オーケストレーターが記録した「選択結果（ControlSnapshot）」に対して、
+				// index.ts 側で管理している制御状態を後入れで補足する。
+				// ここで渡す情報は LLM の判断材料ではなく、
+				// 次回 select フェーズでの「自己観測（Internal Observation）」として利用される。
+				orchestrator.updateLastSnapshotConstraints({
+					hasPlanned,
+					hasSplit,
+					stagnationCount,
+				});
+
 				if (nextEffect === taskCheckEffect) {
 					nextEffect = null;
 				}
