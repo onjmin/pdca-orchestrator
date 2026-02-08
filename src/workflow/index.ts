@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
 import { type Task, taskStack } from "../core/stack-manager";
-import { aiTheorizeEffect } from "../effects/ai/theorize";
+import { aiTroubleshootEffect } from "../effects/ai/troubleshoot";
 import { fileCreateEffect } from "../effects/file/create";
 import { fileGrepEffect } from "../effects/file/grep";
 import { fileInsertAtEffect } from "../effects/file/insert_at";
@@ -24,7 +24,7 @@ import { webWikipediaEffect } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const availableEffects = [
-	aiTheorizeEffect,
+	aiTroubleshootEffect,
 	fileCreateEffect,
 	fileGrepEffect,
 	fileInsertAtEffect,
@@ -148,10 +148,10 @@ async function main() {
 						const rationale =
 							"Modification without progress. Re-evaluate the situation through theorization before further changes.";
 						orchestrator.recordControlSnapshot({
-							chosenEffect: aiTheorizeEffect.name,
+							chosenEffect: aiTroubleshootEffect.name,
 							rationale,
 						});
-						return aiTheorizeEffect;
+						return aiTroubleshootEffect;
 					}
 				}
 
@@ -161,10 +161,10 @@ async function main() {
 					const rationale =
 						"Critical stagnation. Abandon current strategy and perform a fundamental root cause analysis.";
 					orchestrator.recordControlSnapshot({
-						chosenEffect: aiTheorizeEffect.name,
+						chosenEffect: aiTroubleshootEffect.name,
 						rationale,
 					});
-					return aiTheorizeEffect;
+					return aiTroubleshootEffect;
 				}
 
 				// 通常フェーズ：LLM に委譲
