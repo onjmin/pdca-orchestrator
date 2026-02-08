@@ -16,7 +16,7 @@ export type GitCheckoutArgs = z.infer<typeof GitCheckoutArgsSchema>;
  * EFFECT: git.checkout
  * 指定ブランチへ切り替えます。
  */
-export const checkout = createEffect<GitCheckoutArgs, void>({
+export const gitCheckout = createEffect<GitCheckoutArgs, void>({
 	name: "git.checkout",
 	description: "Checkout a branch. By default, it resets local changes to ensure success.",
 	inputSchema: {

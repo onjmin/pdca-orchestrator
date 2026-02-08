@@ -24,7 +24,7 @@ export interface FileReadLinesData {
  * EFFECT: file.read_lines
  * 特定の行範囲を行番号付きで読み取ります。
  */
-export const readLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
+export const fileReadLines = createEffect<FileReadLinesArgs, FileReadLinesData>({
 	name: "file.read_lines",
 	description: "Read specific lines of a file with line numbers to examine code context.",
 	inputSchema: {

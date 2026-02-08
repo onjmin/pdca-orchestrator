@@ -27,7 +27,7 @@ export interface CreatePullRequestData {
  * ローカルの変更をコミットし、リモートへプッシュした上で、GitHub上でPRを作成します。
  * 小人が仕事を完成させた際の「最終報告」用ツールです。
  */
-export const createPullRequest = createEffect<CreatePullRequestArgs, CreatePullRequestData>({
+export const githubCreatePullRequest = createEffect<CreatePullRequestArgs, CreatePullRequestData>({
 	name: "github.create_pull_request",
 	description:
 		"Submit your work. Automatically handles add, commit, push, and PR creation. Call this once to finish your task.",

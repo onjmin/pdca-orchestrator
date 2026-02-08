@@ -17,7 +17,7 @@ export interface WebWikipediaData {
  * EFFECT: web.wikipedia
  * Wikipedia の API を使用して、特定のトピックに関する情報を取得します。
  */
-export const wikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
+export const webWikipedia = createEffect<WebWikipediaArgs, WebWikipediaData>({
 	name: "web.wikipedia",
 	description: "Fetch a summarized explanation of a specific topic from Wikipedia.",
 	inputSchema: {

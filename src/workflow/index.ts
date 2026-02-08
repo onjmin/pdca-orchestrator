@@ -3,51 +3,46 @@ import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { orchestrator } from "../core/orchestrator";
 import { type Task, taskStack } from "../core/stack-manager";
-import { theorize } from "../effects/ai/theorize";
-import { create } from "../effects/file/create";
-import { grep } from "../effects/file/grep";
-import { insertAt } from "../effects/file/insert_at";
-import { listTree } from "../effects/file/list_tree";
-import { patch } from "../effects/file/patch";
-import { readLines } from "../effects/file/read_lines";
-import { checkout } from "../effects/git/checkout";
-import { clone } from "../effects/git/clone";
-import { createPullRequest } from "../effects/github/create-pull-request";
-import { exec } from "../effects/shell/exec";
-import { check } from "../effects/task/check";
-import { plan } from "../effects/task/plan";
-import { split } from "../effects/task/split";
-import { wait } from "../effects/task/wait";
+import { aiTheorize } from "../effects/ai/theorize";
+import { fileCreate } from "../effects/file/create";
+import { fileGrep } from "../effects/file/grep";
+import { fileInsertAt } from "../effects/file/insert_at";
+import { fileListTree } from "../effects/file/list_tree";
+import { filePatch } from "../effects/file/patch";
+import { fileReadLines } from "../effects/file/read_lines";
+import { gitCheckout } from "../effects/git/checkout";
+import { gitClone } from "../effects/git/clone";
+import { githubCreatePullRequest } from "../effects/github/create-pull-request";
+import { shellExec } from "../effects/shell/exec";
+import { taskCheck } from "../effects/task/check";
+import { taskPlan } from "../effects/task/plan";
+import { taskSplit } from "../effects/task/split";
+import { taskWait } from "../effects/task/wait";
 import type { EffectDefinition } from "../effects/types";
-import { fetchContent } from "../effects/web/fetch";
-import { search as webSearch } from "../effects/web/search";
-import { wikipedia } from "../effects/web/wikipedia";
+import { webFetch } from "../effects/web/fetch";
+import { webSearch } from "../effects/web/search";
+import { webWikipedia } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const effects = [
-	listTree,
-	check,
-
-	clone,
-	checkout,
-
-	plan,
-	split,
-	theorize,
-
-	grep,
-	readLines,
-	create,
-	insertAt,
-	patch,
-	exec,
-	wait,
-
+	aiTheorize,
+	fileCreate,
+	fileGrep,
+	fileInsertAt,
+	fileListTree,
+	filePatch,
+	fileReadLines,
+	gitCheckout,
+	gitClone,
+	githubCreatePullRequest,
+	shellExec,
+	taskCheck,
+	taskPlan,
+	taskSplit,
+	taskWait,
+	webFetch,
 	webSearch,
-	wikipedia,
-	fetchContent,
-
-	createPullRequest,
+	webWikipedia,
 ];
 
 const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(

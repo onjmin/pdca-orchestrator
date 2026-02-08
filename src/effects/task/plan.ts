@@ -14,7 +14,7 @@ export type PlanArgs = z.infer<typeof PlanArgsSchema>;
  * EFFECT: task.plan
  * 戦略を策定し、内容を Discord に報告します。
  */
-export const plan = createEffect<PlanArgs, void>({
+export const taskPlan = createEffect<PlanArgs, void>({
 	name: "task.plan",
 	description: "Formulate a strategy to achieve the current task's DoD.",
 	inputSchema: {

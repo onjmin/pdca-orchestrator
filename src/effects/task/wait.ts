@@ -13,7 +13,7 @@ export type TaskWaitArgs = z.infer<typeof TaskWaitArgsSchema>;
  * EFFECT: task.wait
  * 指定した時間だけ待機し、Discord にその旨を報告します。
  */
-export const wait = createEffect<TaskWaitArgs, void>({
+export const taskWait = createEffect<TaskWaitArgs, void>({
 	name: "task.wait",
 	description:
 		"Wait for a specified duration during task execution to let external processes sync or complete.",
