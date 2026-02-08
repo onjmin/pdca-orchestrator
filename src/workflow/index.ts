@@ -23,7 +23,7 @@ import { webSearchEffect } from "../effects/web/search";
 import { webWikipediaEffect } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
-const availableEffects = [
+const allEffects = [
 	aiTroubleshootEffect,
 	fileCreateEffect,
 	fileGrepEffect,
@@ -44,26 +44,36 @@ const availableEffects = [
 	webWikipediaEffect,
 ];
 
-type AvailableEffect = (typeof availableEffects)[number];
-const registry = new Map(availableEffects.map((e) => [e.name, e]));
+type AllEffect = (typeof allEffects)[number];
+const allRegistry = new Map(allEffects.map((e) => [e.name, e]));
 
-// タスクの進捗や状態を変化させる可能性のあるエフェクト
-// nextEffect (AvailableEffect型) をそのまま has() で判定できるよう、型を広げて定義しています
-const taskImpactingEffects = new Set<AvailableEffect>([
-	// ファイル操作系（確実な変更）
+/**
+ * 変更系Effects (Mutating Effects)
+ * ファイルの書き換え、外部環境の操作、プロセス待機など
+ */
+const mutatingEffects = new Set<AllEffect>([
 	fileCreateEffect,
 	fileInsertAtEffect,
 	filePatchEffect,
-
-	// 環境操作・外部連携（変更が伴う）
 	gitCloneEffect,
 	gitCheckoutEffect,
 	shellExecEffect,
-	githubCreatePullRequestEffect, // PR作成も一つの進捗
-
-	// 時間経過による変化（外部プロセスの完了待ちなど）
-	taskWaitEffect,
+	githubCreatePullRequestEffect,
+	taskWaitEffect, // 状態が変化する可能性があるためこちらに分類
 ]);
+
+/**
+ * 観察系Effects (Observation Effects)
+ * 読み取り、検索、解析など
+ */
+const observationEffects = new Set<AllEffect>([
+	fileGrepEffect,
+	fileListTreeEffect,
+	fileReadLinesEffect,
+	shellExecEffect,
+	webFetchEffect,
+]);
+const observationRegistry = new Map([...observationEffects].map((e) => [e.name, e]));
 
 async function main() {
 	console.log("--- 小人が起きました ---");
@@ -94,18 +104,16 @@ async function main() {
 	taskStack.push(initialTask);
 
 	// ---- 制御用状態 ----
-	let hasPlanned = false;
 	let lastTask: Task | null = null;
 
 	let totalTurns = 0;
 	let subTaskTurns = 0;
-	const MAX_TURNS = 20;
+	const MAX_TURNS = 32;
 
-	let modificationCount = 0;
-	let sameEffectCount = 0;
+	let observationsAfterMutating = 0;
 
-	let nextEffect: AvailableEffect | null = null;
-	let lastSelectedEffect: AvailableEffect | null = null;
+	let nextEffect: AllEffect | null = null;
+	let lastSelectedEffect: AllEffect | null = null;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -116,83 +124,43 @@ async function main() {
 			if (!currentTask) break;
 
 			if (currentTask !== lastTask) {
-				hasPlanned = false;
 				lastTask = currentTask;
 				subTaskTurns = 1;
-				modificationCount = 0;
-				sameEffectCount = 0;
+				observationsAfterMutating = 0;
 			}
 
-			// --- effect 選択（強制介入 + 記録） ---
 			nextEffect = await (async () => {
-				// --- 強制介入: 毎タスク初回のプランフェーズ ---
-				if (!hasPlanned) {
-					hasPlanned = true;
+				// 強制介入: 1ターン目は観察系Effectsを選出
+				if (subTaskTurns === 1) {
+					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+				}
+
+				// 強制介入: 前ターンが変更系Effectsであれば、観察系Effectsを選出
+				if (lastSelectedEffect && mutatingEffects.has(lastSelectedEffect)) {
+					observationsAfterMutating++;
+					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+				}
+
+				// 強制介入: 上のルールが規定回数以上発動していれば、DoDチェック
+				if (observationsAfterMutating > 3) {
+					observationsAfterMutating = 0;
 					orchestrator.recordControlSnapshot({
-						chosenEffect: taskPlanEffect.name,
-						rationale: "Initial planning is required for a new task.",
+						chosenEffect: taskCheckEffect.name,
+						rationale:
+							"Sufficient observations have been conducted following modifications. Transitioning to final task verification (DoD).",
 					});
-					return taskPlanEffect;
+					return taskCheckEffect;
 				}
 
-				// --- 強制介入: 変更が一定回数に達したら自動でタスク完了チェックを行う ---
-				if (modificationCount >= 3) {
-					modificationCount = 0; // ループ防止：介入時にリセット
-					orchestrator.recordControlSnapshot({
-						chosenEffect: aiTroubleshootEffect.name,
-						rationale: "強制介入: Stagnation detected. Re-evaluating the situation and strategy.",
-					});
-					return aiTroubleshootEffect;
-				}
-
-				// --- 強制介入: 停滞時のトラブルシュート ---
-				if (sameEffectCount >= 3) {
-					const isModification = [
-						fileCreateEffect.name,
-						taskSplitEffect.name,
-						taskPlanEffect.name,
-					].includes(lastSelectedEffect?.name ?? "");
-
-					if (isModification) {
-						const rationale =
-							"Modification without progress. Re-evaluate the situation through theorization.";
-						orchestrator.recordControlSnapshot({
-							chosenEffect: aiTroubleshootEffect.name,
-							rationale,
-						});
-						return aiTroubleshootEffect;
-					}
-				}
-
-				if (subTaskTurns === 6) {
-					orchestrator.recordControlSnapshot({
-						chosenEffect: aiTroubleshootEffect.name,
-						rationale: "Critical stagnation. Performing root cause analysis.",
-					});
-					return aiTroubleshootEffect;
-				}
-
-				// 通常フェーズ：LLM に委譲
-				return (await orchestrator.selectNextEffect(registry)) ?? null;
+				// 通常
+				return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 			})();
 
 			if (!nextEffect) continue;
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
-
-			// 変更系エフェクトが実行されたらカウントアップ
-			if (taskImpactingEffects.has(nextEffect)) {
-				modificationCount++;
-			}
-
-			// 連続実行カウントの更新
-			if (nextEffect === lastSelectedEffect) {
-				sameEffectCount++;
-			} else {
-				sameEffectCount = 1;
-				lastSelectedEffect = nextEffect;
-			}
+			lastSelectedEffect = nextEffect;
 
 			if (totalTurns >= MAX_TURNS) {
 				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
