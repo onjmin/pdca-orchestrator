@@ -17,19 +17,10 @@ export const orchestrator = {
 	/**
 	 * 制御判断の状態をスナップショットとして記録する
 	 */
-	recordControlSnapshot(params: {
-		phase: ControlSnapshot["phase"];
-		taskTitle: string;
-		chosenEffect: string | null;
-		rationale: string;
-		decisionSource: ControlSnapshot["decisionSource"];
-	}) {
+	recordControlSnapshot(params: { chosenEffect: string | null; rationale: string }) {
 		const snapshot: ControlSnapshot = {
-			phase: params.phase,
-			taskTitle: params.taskTitle,
 			chosenEffect: params.chosenEffect,
 			rationale: params.rationale,
-			decisionSource: params.decisionSource,
 			constraints: {}, // index.ts 側の updateLastSnapshotConstraints で後から補足される
 		};
 
@@ -300,14 +291,9 @@ async function savePromptLog(fileName: string, prompt: string) {
 }
 
 type ControlSnapshot = {
-	phase: "select";
-	taskTitle: string;
 	chosenEffect: string | null;
 	rationale: string;
-	decisionSource: "policy" | "model" | "fallback";
 	constraints: {
-		hasPlanned?: boolean;
-		hasSplit?: boolean;
 		stagnationCount?: number;
 		sameEffectCount?: number;
 	};
@@ -315,19 +301,18 @@ type ControlSnapshot = {
 
 function snapshotToObservationText(s: ControlSnapshot): string {
 	if (!s.chosenEffect) {
-		return `In the previous step, no executable action was selected.`;
+		return "In the previous step, no action was taken.";
 	}
 
+	// 停滞状況をシンプルに言語化
+	const isStagnating = (s.constraints.stagnationCount ?? 0) > 0;
+	const stagnationWarning = isStagnating
+		? `\n[Warning] This approach has not progressed for ${s.constraints.stagnationCount} steps.`
+		: "";
+
 	return `
-Previously, you decided to execute "${s.chosenEffect}" for the following reason:
-> "${s.rationale}"
-
-Internal System State at that time:
-- Planning: ${s.constraints.hasPlanned ? "Completed" : "Pending"}
-- Task Decomposition: ${s.constraints.hasSplit ? "Executed" : "Not yet executed"}
-- Stagnation: ${s.constraints.stagnationCount} steps without progress
-- Repetition: The same action has been repeated ${s.constraints.sameEffectCount} times
-
-[Note] If your previous rationale did NOT result in progress (as shown in the External Observation), you should reconsider your approach instead of repeating the same decision.
+Your previous action: "${s.chosenEffect}"
+Your previous rationale: "${s.rationale}"
+${stagnationWarning}
 `.trim();
 }
