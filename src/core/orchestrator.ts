@@ -23,13 +23,13 @@ export const orchestrator = {
 	 * 1ターン限定の特別指示をセットする
 	 */
 	get oneTimeInstruction() {
-		return this.oneTimeInstruction
+		return this._oneTimeInstruction
 			? `### Special Instruction (Priority)\n**${this.oneTimeInstruction}**\n`
 			: "";
 	},
 
 	set oneTimeInstruction(instruction: string) {
-		this.oneTimeInstruction = instruction;
+		this._oneTimeInstruction = instruction;
 	},
 
 	lastControlSnapshot: null as ControlSnapshot | null,
