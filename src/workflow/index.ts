@@ -18,13 +18,12 @@ import { taskCheckEffect } from "../effects/task/check";
 import { taskPlanEffect } from "../effects/task/plan";
 import { taskSplitEffect } from "../effects/task/split";
 import { taskWaitEffect } from "../effects/task/wait";
-import type { EffectDefinition } from "../effects/types";
 import { webFetchEffect } from "../effects/web/fetch";
 import { webSearchEffect } from "../effects/web/search";
 import { webWikipediaEffect } from "../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
-const effects = [
+const availableEffects = [
 	aiTheorizeEffect,
 	fileCreateEffect,
 	fileGrepEffect,
@@ -45,9 +44,26 @@ const effects = [
 	webWikipediaEffect,
 ];
 
-const registry: Record<string, EffectDefinition<unknown, unknown>> = Object.fromEntries(
-	effects.map((e) => [e.name, e as EffectDefinition<unknown, unknown>]),
-);
+type AvailableEffect = (typeof availableEffects)[number];
+const registry = new Map(availableEffects.map((e) => [e.name, e]));
+
+// タスクの進捗や状態を変化させる可能性のあるエフェクト
+// nextEffect (AvailableEffect型) をそのまま has() で判定できるよう、型を広げて定義しています
+const taskImpactingEffects = new Set<AvailableEffect>([
+	// ファイル操作系（確実な変更）
+	fileCreateEffect,
+	fileInsertAtEffect,
+	filePatchEffect,
+
+	// 環境操作・外部連携（変更が伴う）
+	gitCloneEffect,
+	gitCheckoutEffect,
+	shellExecEffect,
+	githubCreatePullRequestEffect, // PR作成も一つの進捗
+
+	// 時間経過による変化（外部プロセスの完了待ちなど）
+	taskWaitEffect,
+]);
 
 async function main() {
 	console.log("--- 小人が起きました ---");
@@ -84,19 +100,9 @@ async function main() {
 	let totalTurns = 0;
 	let lastTask: Task | null = null;
 
-	// 「状態を変えた」とみなす effect
-	const STATE_CHANGING_EFFECTS = new Set([
-		fileCreateEffect.name,
-		fileInsertAtEffect.name,
-		filePatchEffect.name,
-		gitCloneEffect.name,
-		gitCheckoutEffect.name,
-		shellExecEffect.name,
-	]);
-
 	const MAX_TURNS = 20;
 
-	let nextEffectName: string | null = null;
+	let nextEffect: AvailableEffect | null = null;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -119,7 +125,7 @@ async function main() {
 				 * task.plan はタスク開始時に必ず1回だけ実行する。
 				 * 再計画は LLM の気分ではなく、タスク差し替え時にのみ行う。
 				 */
-				nextEffectName = taskPlanEffect.name;
+				nextEffect = taskPlanEffect;
 				hasPlanned = true;
 			} else if (stagnationCount === 1 && !hasSplit && taskStack.length === 1) {
 				/**
@@ -127,39 +133,35 @@ async function main() {
 				 * これにより粒度過多タスクの分解はできるが、
 				 * 無限 split ループは防止される。
 				 */
-				nextEffectName = taskSplitEffect.name;
+				nextEffect = taskSplitEffect;
 				hasSplit = true;
 			} else {
 				/**
 				 * 通常時は次の action 選択を LLM に委ねる。
 				 * ただし task.check はここでは選ばせない。
 				 */
-				nextEffectName = (await orchestrator.selectNextEffect(registry)) ?? null;
+				nextEffect = (await orchestrator.selectNextEffect(registry)) ?? null;
 
-				if (nextEffectName === taskCheckEffect.name) {
-					nextEffectName = null;
+				if (nextEffect === taskCheckEffect) {
+					nextEffect = null;
 				}
 			}
 
 			// fallback（何も選ばれなかった場合）
-			if (!nextEffectName) {
-				nextEffectName = taskWaitEffect.name;
+			if (!nextEffect) {
+				nextEffect = taskWaitEffect;
 			}
 
 			// --- effect 実行 ---
-			await orchestrator.dispatch(registry[nextEffectName], nextEffectName, currentTask);
+			await orchestrator.dispatch(nextEffect, currentTask);
 
 			// --- task.check は「状態変化の直後」にのみ自動発火 ---
-			if (nextEffectName && STATE_CHANGING_EFFECTS.has(nextEffectName)) {
+			if (nextEffect && taskImpactingEffects.has(nextEffect)) {
 				/**
 				 * task.check は検証であり思考ではない。
 				 * そのため「世界が変わった直後」にのみ実行する。
 				 */
-				await orchestrator.dispatch(
-					registry[taskCheckEffect.name],
-					taskCheckEffect.name,
-					currentTask,
-				);
+				await orchestrator.dispatch(taskCheckEffect, currentTask);
 			}
 
 			// --- 進捗評価 ---

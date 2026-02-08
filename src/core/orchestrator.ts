@@ -4,8 +4,11 @@ import type { EffectDefinition, EffectField, EffectResponse } from "../effects/t
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
 
-// 抽象化されたエフェクト型
-type AnyEffect = EffectDefinition<unknown, unknown>;
+// 外部から受け入れるための汎用型（anyの使用をここだけに限定する）
+// 1. 各Effectの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
+// 2. LLMが生成した動的なJSONを型安全の境界を越えて注入するため、意図的に型を消去している。
+// biome-ignore lint/suspicious/noExplicitAny: カタログ形式での一括管理と実行時の動的注入を両立するための意図的な型消去
+type GenericEffect = EffectDefinition<any, any>;
 
 export const orchestrator = {
 	// 最新のEffect execution結果を保持するバッファ
@@ -33,9 +36,9 @@ export const orchestrator = {
 	/**
 	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
 	 */
-	async selectNextEffect(registry: Record<string, AnyEffect>): Promise<string | null> {
+	async selectNextEffect(registry: Map<string, GenericEffect>): Promise<GenericEffect | null> {
 		const stack = taskStack.getStack();
-		if (stack.length === 0) return "";
+		if (stack.length === 0) return null;
 
 		const currentTask = stack[stack.length - 1];
 
@@ -47,7 +50,7 @@ Strategy: ${currentTask.strategy || "None (Need to plan?)"}
 Reasoning: ${currentTask.reasoning || "None"}
         `.trim();
 
-		const tools = Object.entries(registry)
+		const tools = Array.from(registry.entries())
 			.map(([name, eff]) => `- ${name}: ${eff.description}`)
 			.join("\n");
 
@@ -82,28 +85,25 @@ Respond with only the effect name.
 			return null;
 		}
 
-		const found = Object.keys(registry).find((name) => rawContent.includes(name));
+		const effectNames = Array.from(registry.keys());
+		const found = effectNames.find((name) => rawContent.includes(name));
 
 		if (!found) {
 			this.lastEffectResult = {
 				success: false,
 				summary: `Decision failed: Selected effect "${rawContent.substring(0, 50)}" is not available.`,
-				error: `AVAILABLE_EFFECTS: ${Object.keys(registry).join(", ")}`,
+				error: `AVAILABLE_EFFECTS: ${Array.from(registry.keys()).join(", ")}`,
 			};
 			return null;
 		}
 
-		return found;
+		return registry.get(found) ?? null;
 	},
 
 	/**
 	 * 2. 選ばれたエフェクトを実行する（3ステップ構成）
 	 */
-	async dispatch(
-		effect: AnyEffect,
-		effectName: string,
-		task: Task,
-	): Promise<EffectResponse<unknown> | undefined> {
+	async dispatch(effect: GenericEffect, task: Task): Promise<EffectResponse<unknown> | undefined> {
 		// --- [STEP 2: Argument Generation] ---
 
 		let rawDataFieldName = "";
@@ -114,7 +114,7 @@ Respond with only the effect name.
 				if (field.isRawData) {
 					if (rawDataFieldName) {
 						console.warn(
-							`[Orchestrator] Warning: Multiple isRawData fields found in "${effectName}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
+							`[Orchestrator] Warning: Multiple isRawData fields found in "${effect.name}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
 						);
 					} else {
 						rawDataFieldName = key;
@@ -128,7 +128,7 @@ Respond with only the effect name.
 		);
 
 		const argPrompt = `
-You are using the tool: "${effectName}"
+You are using the tool: "${effect.name}"
 Description: ${effect.description}
 
 ### Task Context
@@ -169,7 +169,7 @@ Respond with ONLY the JSON object.
 			const rawPrompt = `
 ### Context
 Task: ${task.title}
-Executing Tool: ${effectName}
+Executing Tool: ${effect.name}
 Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
 Other Arguments: ${JSON.stringify(args)}
 Latest Observation: ${this.lastEffectResult}
@@ -201,7 +201,7 @@ If this is code, provide the full source code.
 
 		// --- [Execution] ---
 		try {
-			console.log(`[Exec] Running ${effectName}...`);
+			console.log(`[Exec] Running ${effect.name}...`);
 			const result = await effect.handler(finalArgs);
 			this.lastEffectResult = result;
 			return result;
@@ -209,7 +209,7 @@ If this is code, provide the full source code.
 			const errorMessage = e instanceof Error ? e.message : String(e);
 			const failResult: EffectResponse<never> = {
 				success: false,
-				summary: `Runtime error in ${effectName}`,
+				summary: `Runtime error in ${effect.name}`,
 				error: errorMessage,
 			};
 			this.lastEffectResult = failResult;
