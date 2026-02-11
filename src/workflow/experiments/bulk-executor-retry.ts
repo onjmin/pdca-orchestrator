@@ -27,8 +27,17 @@ You are an expert developer. Based on the GOAL below, output ALL necessary file 
 ${goalContent}
 
 [REQUIREMENTS]
-1. Use Node.js for development.
-2. Design tests using 'node:test' and ensure they can be executed with 'npm test'.
+1. package.json MUST contain:
+   {
+     "type": "module",
+     "scripts": { "test": "node --test" }
+   }
+
+2. Use ONLY ESM syntax.
+3. Do NOT use require().
+4. Use only node:test (no jest, no describe, no expect).
+5. All test files must be under ./test directory.
+6. Do not create multiple test directories.
 
 [RULE]
 You must output using the following formats strictly. Do not use markdown code blocks for the output itself.
