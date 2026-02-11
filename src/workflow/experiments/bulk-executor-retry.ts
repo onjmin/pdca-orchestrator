@@ -108,7 +108,7 @@ Previous attempt failed during 'npm test'.
 Please analyze the error and the directory structure, then output the FULL corrected files and commands.
 
 [ERROR LOG]
-${testResponse.data}
+${testResponse.error}
 
 [CURRENT DIRECTORY TREE]
 ${treeOutput}

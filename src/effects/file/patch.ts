@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
-import { resolve } from "node:path";
 import { z } from "zod";
 import { createEffect, type EffectResponse, effectResult } from "../types";
+import { getSafePath } from "./utils"; // getSafePath をインポート
 
 export const FilePatchArgsSchema = z.object({
 	path: z.string().describe("Path of the file to patch."),
@@ -42,14 +42,15 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 
 	handler: async (args: FilePatchArgs): Promise<EffectResponse<{ path: string }>> => {
 		try {
-			const { path, startLine, endLine, insertText } = FilePatchArgsSchema.parse(args);
-			const absolutePath = resolve(process.cwd(), path);
+			const { path: filePath, startLine, endLine, insertText } = FilePatchArgsSchema.parse(args);
+
+			const safeAbsolutePath = getSafePath(filePath);
 
 			if (startLine > endLine) {
 				return effectResult.fail(`Invalid range: startLine (${startLine}) > endLine (${endLine})`);
 			}
 
-			const content = await fs.readFile(absolutePath, "utf-8");
+			const content = await fs.readFile(safeAbsolutePath, "utf-8");
 			const lines = content.split(/\r?\n/);
 
 			// バリデーション: 指定された行がファイル内に存在するか
@@ -58,17 +59,19 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 			}
 
 			// 行の置換処理
-			// splice(開始インデックス, 削除する要素数, 追加する要素)
 			// 1-indexed を 0-indexed に調整
 			const deleteCount = endLine - startLine + 1;
 			lines.splice(startLine - 1, deleteCount, insertText);
 
 			const newContent = lines.join("\n");
-			await fs.writeFile(absolutePath, newContent, "utf-8");
+			await fs.writeFile(safeAbsolutePath, newContent, "utf-8");
 
-			return effectResult.ok(`Successfully patched ${path} (L${startLine}-L${endLine} replaced).`, {
-				path,
-			});
+			return effectResult.ok(
+				`Successfully patched ${filePath} (L${startLine}-L${endLine} replaced).`,
+				{
+					path: filePath,
+				},
+			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			return effectResult.fail(`File patch failed: ${errorMessage}`);
