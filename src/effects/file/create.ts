@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { truncateForPrompt } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 import { getSafePath } from "./utils";
 
@@ -14,7 +15,6 @@ export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
 /**
  * EFFECT: file.create
  * ファイルの新規作成、または全文上書きを行います。
- * 親ディレクトリが存在しない場合は自動的に作成します。
  */
 export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 	name: "file.create",
@@ -37,20 +37,28 @@ export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 			const { path: filePath, content } = FileCreateArgsSchema.parse(args);
 			const safePath = getSafePath(filePath);
 
-			// 書き込み前に存在確認
 			const isNewFile = !fs.existsSync(safePath);
-
-			// ディレクトリを再帰的に作成
 			fs.mkdirSync(path.dirname(safePath), { recursive: true });
-
-			// 内容を書き込み
 			fs.writeFileSync(safePath, content, "utf8");
 
-			return effectResult.okVoid(
-				isNewFile
-					? `Successfully created a new file at: ${filePath}`
-					: `Successfully updated the file at: ${filePath}. (Note: Full overwrite performed)`,
-			);
+			// AIを安心させるための情報を収集
+			const stats = fs.statSync(safePath);
+			const lines = content.split("\n");
+			const preview = truncateForPrompt(content, 200);
+
+			// summary に具体的な情報を詰め込み、ObservationとしてAIに認識させる
+			const statusLabel = isNewFile ? "CREATED" : "UPDATED (Overwritten)";
+			const summary = [
+				`Successfully ${statusLabel}: ${filePath}`,
+				`Size: ${stats.size} bytes`,
+				`Lines: ${lines.length}`,
+				`Content Snapshot:`,
+				"---",
+				preview,
+				"---",
+			].join("\n");
+
+			return effectResult.okVoid(summary);
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			return effectResult.fail(`Create error: ${errorMessage}`);

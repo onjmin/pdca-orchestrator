@@ -3,7 +3,7 @@ import path from "node:path";
 import type { EffectDefinition, EffectField, EffectResponse } from "../effects/types";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
-import { truncate } from "./utils";
+import { truncateForPrompt } from "./utils";
 
 // 外部から受け入れるための汎用型（anyの使用をここだけに限定する）
 // 1. 各Effectの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
@@ -88,7 +88,7 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 	get lastEffectResult(): string {
 		if (!this._lastResult) return "No previous action.";
 
-		return truncate(JSON.stringify(this._lastResult, null, 2), 2000);
+		return truncateForPrompt(JSON.stringify(this._lastResult, null, 2), 2000);
 	},
 
 	/**

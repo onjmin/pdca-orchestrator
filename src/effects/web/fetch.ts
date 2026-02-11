@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { truncate } from "../../core/utils";
+import { truncateForPrompt } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 
 export const WebFetchArgsSchema = z.object({
@@ -87,7 +87,7 @@ export const webFetchEffect = createEffect<WebFetchArgs, WebFetchData>({
 			const content = await response.text();
 
 			return effectResult.ok(`Successfully fetched from ${url} (Status: ${response.status})`, {
-				content: truncate(content, 1000),
+				content: truncateForPrompt(content, 1000),
 				status: response.status,
 			});
 		} catch (err) {
