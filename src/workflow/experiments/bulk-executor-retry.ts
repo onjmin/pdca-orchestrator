@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { llm } from "../../core/llm-client";
 import { fileCreateEffect } from "../../effects/file/create";
 import { fileListTreeEffect } from "../../effects/file/list_tree";
+import { getSafePath } from "../../effects/file/utils";
 import { shellExecEffect } from "../../effects/shell/exec";
 
 async function main() {
@@ -68,7 +69,7 @@ Execute in order. Start now.
 			} else if (shellCommand) {
 				await shellExecEffect.handler({
 					command: shellCommand.trim(),
-					cwd: process.cwd(),
+					cwd: getSafePath("."),
 					timeout: 60000,
 				});
 			}
@@ -77,13 +78,13 @@ Execute in order. Start now.
 
 		// 3. テスト実行の準備と実行
 		console.log("🛠️  依存関係をインストール中 (npm i)...");
-		await shellExecEffect.handler({ command: "npm i", cwd: process.cwd(), timeout: 300000 });
+		await shellExecEffect.handler({ command: "npm i", cwd: getSafePath("."), timeout: 300000 });
 
 		console.log("🧪 最終チェック (npm test) を開始します...");
 
 		const testResponse = await shellExecEffect.handler({
 			command: "npm test",
-			cwd: process.cwd(),
+			cwd: getSafePath("."),
 			timeout: 60000,
 		});
 

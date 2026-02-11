@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { llm } from "../../core/llm-client"; // 提示いただいたLLMモジュール
 import { fileCreateEffect } from "../../effects/file/create";
+import { getSafePath } from "../../effects/file/utils";
 import { shellExecEffect } from "../../effects/shell/exec";
 
 async function main() {
@@ -76,7 +77,7 @@ Execute in order. Start now.
 			console.log(`[Step ${stepCount}] Executing: ${shellCommand.trim()}`);
 			await shellExecEffect.handler({
 				command: shellCommand.trim(),
-				cwd: process.cwd(), // 実行ディレクトリを現在のプロセスに合わせる
+				cwd: getSafePath("."),
 				timeout: 60000, // 1分でタイムアウト（必要に応じて調整）
 			});
 		}
