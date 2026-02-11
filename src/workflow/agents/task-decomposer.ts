@@ -2,7 +2,7 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { orchestrator } from "../../core/orchestrator";
-import { type Task, taskStack } from "../../core/stack-manager";
+import { taskStack } from "../../core/stack-manager";
 import { aiTroubleshootEffect } from "../../effects/ai/troubleshoot";
 import { fileCreateEffect } from "../../effects/file/create";
 import { fileGrepEffect } from "../../effects/file/grep";
