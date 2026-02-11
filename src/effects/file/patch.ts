@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { truncateForPrompt } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 import { getSafePath } from "./utils"; // getSafePath をインポート
 
@@ -66,8 +67,16 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 			const newContent = lines.join("\n");
 			await fs.writeFile(safeAbsolutePath, newContent, "utf-8");
 
+			// AIを安心させるためのパッチ後のスナップショットを作成
+			// 置換した位置の周辺（前後1行ずつなど）を見せるのが理想的
+			const contextStart = Math.max(0, startLine - 2);
+			const contextEnd = startLine; // 置換した部分の先頭付近
+			const previewLines = lines.slice(contextStart, contextEnd + 1);
+			const preview = previewLines.join("\n");
+
 			return effectResult.ok(
-				`Successfully patched ${filePath} (L${startLine}-L${endLine} replaced).`,
+				`Successfully patched ${filePath} (L${startLine}-L${endLine} replaced).\n` +
+					`New Content Snapshot around L${startLine}:\n---\n${truncateForPrompt(preview, 200)}\n---`,
 				{
 					path: filePath,
 				},

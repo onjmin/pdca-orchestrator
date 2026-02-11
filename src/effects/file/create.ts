@@ -44,7 +44,6 @@ export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 			// AIを安心させるための情報を収集
 			const stats = fs.statSync(safePath);
 			const lines = content.split("\n");
-			const preview = truncateForPrompt(content, 200);
 
 			// summary に具体的な情報を詰め込み、ObservationとしてAIに認識させる
 			const statusLabel = isNewFile ? "CREATED" : "UPDATED (Overwritten)";
@@ -54,7 +53,7 @@ export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 				`Lines: ${lines.length}`,
 				`Content Snapshot:`,
 				"---",
-				preview,
+				truncateForPrompt(content, 200),
 				"---",
 			].join("\n");
 

@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { truncateForPrompt } from "../../core/utils";
 import { createEffect, type EffectResponse, effectResult } from "../types";
 import { getSafePath } from "./utils"; // getSafePath をインポート
 
@@ -43,7 +44,15 @@ export const fileInsertAtEffect = createEffect<FileInsertAtArgs, { path: string 
 
 			await fs.writeFile(safeAbsolutePath, lines.join("\n"), "utf-8");
 
-			return effectResult.ok(`Inserted text at ${filePath}:L${atLine}.`, { path: filePath });
+			const previewStart = Math.max(0, atLine - 1);
+			const previewEnd = Math.min(lines.length, atLine + 1);
+			const preview = lines.slice(previewStart, previewEnd).join("\n");
+
+			return effectResult.ok(
+				`Successfully inserted text into ${filePath} at line ${atLine}.\n` +
+					`Context Snapshot:\n---\n${truncateForPrompt(preview, 200)}\n---`,
+				{ path: filePath },
+			);
 		} catch (err) {
 			return effectResult.fail(
 				`Insertion failed: ${err instanceof Error ? err.message : String(err)}`,
