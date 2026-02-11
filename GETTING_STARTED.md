@@ -164,7 +164,7 @@ CONTAINER ID   IMAGE   COMMAND   CREATED   STATUS   PORTS   NAMES
 WSL に Docker をインストールした直後は、
 まだコンテナが存在しないため、この出力になるのが正しい挙動です。
 
-エラーが出なければ、**sudo なしで Docker コマンドを実行できています。**
+エラーが出なければ、sudo なしで Docker コマンドを実行できています。
 
 ### 1.5 ネットワークについて（LM Studio との疎通）
 
