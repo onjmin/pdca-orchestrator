@@ -148,7 +148,6 @@ export async function run() {
 				if (subTaskTurns !== 1 && lastSelectedEffect === taskCheckEffect) {
 					orchestrator.oneTimeInstruction =
 						"Evaluate if the current DoD is simple enough to be completed in a single step. If it feels complex or multi-faceted, use 'task.split' to break it down into smaller, manageable sub-tasks.";
-					// ここでは全Registryから選ばせる（AIが「分割不要」と判断すれば通常通り進めるため）
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
