@@ -8,7 +8,7 @@ import { getSafePath } from "../../effects/file/utils";
 import { shellExecEffect } from "../../effects/shell/exec";
 
 async function main() {
-	console.log("--- 職人が起きました（自律テスト・修復モード） ---");
+	console.log("--- 職人が起きました（自律テスト・パッケージ事前解決モード） ---");
 
 	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let goalContent = "";
@@ -19,42 +19,36 @@ async function main() {
 		return;
 	}
 
-	// 初回プロンプトの構築
+	// パッケージ一覧を [PACKAGES] タグで出させるように指示
 	let currentPrompt = `
-You are an expert developer. Based on the GOAL below, output ALL necessary file creations and shell commands to complete the task at once.
+You are an expert developer. Based on the GOAL below, output ALL necessary steps.
 
 [GOAL]
 ${goalContent}
 
 [REQUIREMENTS]
-1. package.json MUST contain:
-   {
-     "type": "module",
-     "scripts": { "test": "node --test" }
-   }
-
-2. Use ONLY ESM syntax.
-3. Do NOT use require().
-4. Use only node:test (no jest, no describe, no expect).
-5. All test files must be under ./test directory.
-6. Do not create multiple test directories.
+1. Use Node.js for development.
+2. Design tests using 'node:test' and ensure 'npm test' works.
 
 [RULE]
-You must output using the following formats strictly. Do not use markdown code blocks for the output itself.
+Strictly follow these formats:
 
-For file creation:
+1. List ALL npm packages to be installed:
+[PACKAGES]
+package-name1 package-name2 ...
+[/PACKAGES]
+
+2. File creation:
 [FILE]
 path/to/file.ts
 ---
 content
 [/FILE]
 
-For shell commands:
+3. Additional shell commands:
 [SHELL]
-command here
+command
 [/SHELL]
-
-Execute in order. Start now.
 `.trim();
 
 	const MAX_RETRIES = 3;
@@ -64,86 +58,89 @@ Execute in order. Start now.
 		attempt++;
 		console.log(`\n--- 試行 ${attempt}/${MAX_RETRIES} ---`);
 
-		// 1. LLMに生成を依頼
 		const rawOutput = await llm.complete(currentPrompt);
 
-		// 掃除
+		// 実行直前の掃除
 		const baseDir = getSafePath(".");
-		console.log(`Working Directory: ${baseDir}`);
 		try {
-			// BASE_DIR の中身を再帰的に削除
 			const files = await fs.readdir(baseDir);
 			for (const file of files) {
-				const target = resolve(baseDir, file);
-				await fs.rm(target, { recursive: true, force: true });
+				if (file === "GOAL.md" || file === ".env") continue;
+				await fs.rm(resolve(baseDir, file), { recursive: true, force: true });
 			}
 			console.log("🧹 ワークスペースを掃除しました。");
 		} catch (err) {
-			console.warn("⚠️ 掃除中にエラーが発生しました（無視して続行します）:", err);
+			console.warn("⚠️ 掃除失敗:", err);
 		}
 
-		// 2. パースと反映 (既存のロジック)
+		// --- 2. [FILE] と [SHELL] のパースと反映 ---
 		const pattern = /\[FILE\]\n(.*?)\n---\n([\s\S]*?)\n\[\/FILE\]|\[SHELL\]\n(.*?)\n\[\/SHELL\]/g;
 		let match: RegExpExecArray | null;
 		match = pattern.exec(rawOutput);
 		while (match !== null) {
 			const [, filePath, fileContent, shellCommand] = match;
 			if (filePath) {
+				console.log(`📄 Creating: ${filePath.trim()}`);
 				await fileCreateEffect.handler({ path: filePath.trim(), content: fileContent });
 			} else if (shellCommand) {
+				console.log(`💻 Executing: ${shellCommand.trim()}`);
 				await shellExecEffect.handler({
 					command: shellCommand.trim(),
-					cwd: getSafePath("."),
+					cwd: baseDir,
 					timeout: 60000,
 				});
 			}
 			match = pattern.exec(rawOutput);
 		}
 
-		// 3. テスト実行の準備と実行
-		console.log("🛠️  依存関係をインストール中 (npm i)...");
-		await shellExecEffect.handler({ command: "npm i", cwd: getSafePath("."), timeout: 300000 });
+		// --- 3. 仕上げの npm i & npm test ---
+		console.log("🛠️  依存関係の整合性チェック (npm i)...");
+		await shellExecEffect.handler({ command: "npm i", cwd: baseDir, timeout: 300000 });
 
-		console.log("🧪 最終チェック (npm test) を開始します...");
+		// --- 1. [PACKAGES] のパースと実行 ---
+		const pkgMatch = /\[PACKAGES\]\n([\s\S]*?)\n\[\/PACKAGES\]/.exec(rawOutput);
+		if (pkgMatch?.[1].trim()) {
+			const packages = pkgMatch[1].trim().replace(/\n/g, " ");
+			console.log(`📦 インストール指定パッケージ: ${packages}`);
+			await shellExecEffect.handler({
+				command: `npm install ${packages}`,
+				cwd: baseDir,
+				timeout: 300000,
+			});
+		}
 
+		console.log("🧪 テスト実行 (npm test)...");
 		const testResponse = await shellExecEffect.handler({
 			command: "npm test",
-			cwd: getSafePath("."),
+			cwd: baseDir,
 			timeout: 60000,
 		});
 
 		if (testResponse.success) {
-			console.log("✅ 全てのテストに合格しました！作業を完了します。");
+			console.log("✅ 全てのテストに合格しました！");
 			break;
 		}
 
-		// 4. 失敗時のリトライ準備
+		// --- 4. 失敗時のフィードバック ---
 		console.error(`❌ テスト失敗 (試行 ${attempt})`);
-		console.error(testResponse.error);
-		if (attempt >= MAX_RETRIES) {
-			console.error("最大リトライ回数に達しました。");
-			break;
-		}
+		const errorLog = testResponse.error;
+
+		if (attempt >= MAX_RETRIES) break;
 
 		const treeResponse = await fileListTreeEffect.handler({ path: ".", depth: 3 });
 		const treeOutput = treeResponse.success ? treeResponse.data?.tree : "N/A";
 
-		console.log("エラー内容を元に再生成を依頼します...");
 		currentPrompt = `
-Previous attempt failed during 'npm test'.
-Please analyze the error and the directory structure, then output the FULL corrected files and commands.
+Test failed. Analyze the error and FULLY output all corrected blocks including [PACKAGES].
 
 [ERROR LOG]
-${testResponse.error}
+${errorLog}
 
-[CURRENT DIRECTORY TREE]
+[CURRENT TREE]
 ${treeOutput}
 
-[GOAL] (Reminder)
+[GOAL]
 ${goalContent}
-
-[RULE]
-Output in [FILE] and [SHELL] formats again.
 `.trim();
 	}
 }
