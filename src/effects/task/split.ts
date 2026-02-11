@@ -58,6 +58,7 @@ export const taskSplitEffect = createEffect<SplitArgs, void>({
 				title: title,
 				description: description,
 				dod: dod,
+				turns: 1,
 			});
 
 			// Discord報告

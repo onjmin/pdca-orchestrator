@@ -68,6 +68,7 @@ export async function run() {
 		title: "Initial Goal",
 		description: "Establish the development environment.",
 		dod: "Goal achieved.",
+		turns: 1,
 	};
 
 	try {
@@ -79,7 +80,7 @@ export async function run() {
 		}
 
 		const [title, description, dod] = parts;
-		initialTask = { title, description, dod };
+		initialTask = { title, description, dod, turns: 1 };
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		throw new Error(`[CRITICAL] Failed to initialize task: ${msg}`);
@@ -87,11 +88,7 @@ export async function run() {
 
 	taskStack.push(initialTask);
 
-	// ---- 制御用状態 ----
-	let lastTask: Task | null = null;
-
 	let totalTurns = 0;
-	let subTaskTurns = 0;
 	const MAX_TURNS = 64;
 
 	let nextEffect: AllEffect | null = null;
@@ -99,7 +96,6 @@ export async function run() {
 	try {
 		while (!taskStack.isEmpty()) {
 			totalTurns++;
-			subTaskTurns++;
 			orchestrator.oneTimeInstruction = "";
 
 			if (process.env.DEBUG_MODE === "1") {
@@ -109,21 +105,27 @@ export async function run() {
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
-			if (currentTask !== lastTask) {
-				lastTask = currentTask;
-				subTaskTurns = 1;
-			}
+			currentTask.turns++;
 
 			nextEffect = await (async () => {
-				// 強制介入: 1ターン目は現状把握
-				if (subTaskTurns === 1) {
+				const isInitialParentTask = taskStack.currentTask === initialTask;
+
+				// 強制介入: 現状把握（全タスク共通の1ターン目）
+				if (currentTask.turns === 1) {
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
 				}
 
-				// 2. 2ターン目：タスクが巨大なら即座に分割・計画させる
-				if (subTaskTurns === 2 && !currentTask.strategy) {
+				// 強制介入: 最初の親タスクの2ターン目：分割を強制
+				if (isInitialParentTask && currentTask.turns === 2) {
 					orchestrator.oneTimeInstruction =
-						"Analyze the current goal and determine if it can be achieved in a single action. If it requires multiple steps (e.g., install -> create -> test), use 'task.split' or 'task.plan' NOW to create a granular roadmap.";
+						"The goal is complex. You MUST use 'task.split' to break it down into smaller sub-tasks. Do not start work until the task is split.";
+					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+				}
+
+				// 強制介入: 最初の親タスクの3ターン目：それでも分割してなければ再度警告
+				if (isInitialParentTask && currentTask.turns === 3 && !currentTask.strategy) {
+					orchestrator.oneTimeInstruction =
+						"You haven't split the task yet. Use 'task.split' now to ensure a manageable roadmap.";
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 

@@ -6,6 +6,7 @@ export interface Task {
 	strategy?: string;
 	reasoning?: string;
 	completedSubTasks?: Task[];
+	turns: number;
 }
 
 // 実行中に状態を保持するシングルトン
