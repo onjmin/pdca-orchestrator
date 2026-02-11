@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx src/workflow/index.ts",
-    "dev": "tsx src/workflow/index.ts",
+    "dev1": "tsx src/workflow/experiments/bulk-executor.ts",
+    "dev2": "tsx src/workflow/experiments/bulk-executor-retry.ts",
     "lint": "biome check src",
     "test:file": "tsx src/workflow/tests/file-create-test.ts",
     "test:shell": "tsx src/workflow/tests/shell-exec-test.ts",
