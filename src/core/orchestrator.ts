@@ -100,12 +100,21 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 
 		const currentTask = stack[stack.length - 1];
 
+		// --- 履歴の成形 ---
+		const historyText =
+			currentTask.completedSubTasks && currentTask.completedSubTasks.length > 0
+				? currentTask.completedSubTasks.map((t) => `- [COMPLETED] ${t.title}: ${t.dod}`).join("\n")
+				: "No sub-tasks completed yet.";
+
 		const taskInfo = `
 Current Task: ${currentTask.title}
 Description: ${currentTask.description}
 DoD: ${currentTask.dod}
 Strategy: ${currentTask.strategy || "None (Need to plan?)"}
 Reasoning: ${currentTask.reasoning || "None"}
+
+### Completed Progress
+${historyText}
         `.trim();
 
 		const tools = Array.from(registry.entries())

@@ -5,6 +5,7 @@ export interface Task {
 	dod: string;
 	strategy?: string;
 	reasoning?: string;
+	completedSubTasks?: Task[];
 }
 
 // 実行中に状態を保持するシングルトン
@@ -25,11 +26,19 @@ class StackManager {
 	}
 
 	pop(): Task | undefined {
-		const task = this.stack.pop();
-		if (task) {
+		const finishedTask = this.stack.pop();
+		if (finishedTask) {
 			this._totalPoppedCount++; // タスクを消化した実績を記録
+
+			const parent = this.currentTask;
+			if (parent) {
+				if (!parent.completedSubTasks) {
+					parent.completedSubTasks = [];
+				}
+				parent.completedSubTasks.push(finishedTask);
+			}
 		}
-		return task;
+		return finishedTask;
 	}
 
 	/**
