@@ -58,6 +58,21 @@ Execute in order. Start now.
 		// 1. LLMに生成を依頼
 		const rawOutput = await llm.complete(currentPrompt);
 
+		// 掃除
+		const baseDir = getSafePath(".");
+		console.log(`Working Directory: ${baseDir}`);
+		try {
+			// BASE_DIR の中身を再帰的に削除
+			const files = await fs.readdir(baseDir);
+			for (const file of files) {
+				const target = resolve(baseDir, file);
+				await fs.rm(target, { recursive: true, force: true });
+			}
+			console.log("🧹 ワークスペースを掃除しました。");
+		} catch (err) {
+			console.warn("⚠️ 掃除中にエラーが発生しました（無視して続行します）:", err);
+		}
+
 		// 2. パースと反映 (既存のロジック)
 		const pattern = /\[FILE\]\n(.*?)\n---\n([\s\S]*?)\n\[\/FILE\]|\[SHELL\]\n(.*?)\n\[\/SHELL\]/g;
 		let match: RegExpExecArray | null;

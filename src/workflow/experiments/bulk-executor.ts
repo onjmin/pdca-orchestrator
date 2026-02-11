@@ -48,6 +48,21 @@ Execute in order. Start now.
 	console.log("LLMが思考中...");
 	const rawOutput = await llm.complete(prompt);
 
+	// 掃除
+	const baseDir = getSafePath(".");
+	console.log(`Working Directory: ${baseDir}`);
+	try {
+		// BASE_DIR の中身を再帰的に削除
+		const files = await fs.readdir(baseDir);
+		for (const file of files) {
+			const target = resolve(baseDir, file);
+			await fs.rm(target, { recursive: true, force: true });
+		}
+		console.log("🧹 ワークスペースを掃除しました。");
+	} catch (err) {
+		console.warn("⚠️ 掃除中にエラーが発生しました（無視して続行します）:", err);
+	}
+
 	// 4. 正規表現によるパースと順次実行
 	// [FILE]パス\n---\n内容[/FILE] または [SHELL]コマンド[/SHELL]
 	const pattern = /\[FILE\]\n(.*?)\n---\n([\s\S]*?)\n\[\/FILE\]|\[SHELL\]\n(.*?)\n\[\/SHELL\]/g;
