@@ -20,14 +20,16 @@ async function main() {
 
 	// 初回プロンプトの構築
 	let currentPrompt = `
-You are an expert developer. Based on the GOAL below, output ALL necessary file creations and shell commands to complete the task at once.
+You are an expert developer. Based on the GOAL below, output ALL necessary steps (file creations and shell commands) to complete the task.
 
 [GOAL]
 ${goalContent}
 
-[REQUIREMENTS]
-1. Use Node.js for development.
-2. Design tests using 'node:test' and ensure they can be executed with 'npm test'.
+[IMPORTANT REQUIREMENTS]
+1. Use Node.js.
+2. Design tests using 'node:test'.
+3. **You must include [SHELL] commands to install dependencies (e.g., npm install) if you create or modify package.json.**
+4. Ensure 'npm test' will work in the final state.
 
 [RULE]
 You must output using the following formats strictly. Do not use markdown code blocks for the output itself.
