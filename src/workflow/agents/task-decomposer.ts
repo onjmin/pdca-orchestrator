@@ -137,6 +137,13 @@ export async function run() {
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
 				}
 
+				// 2. 2ターン目：タスクが巨大なら即座に分割・計画させる
+				if (subTaskTurns === 2 && !currentTask.strategy) {
+					orchestrator.oneTimeInstruction =
+						"Analyze the current goal and determine if it can be achieved in a single action. If it requires multiple steps (e.g., install -> create -> test), use 'task.split' or 'task.plan' NOW to create a granular roadmap.";
+					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+				}
+
 				// 強制介入: DoDチェック失敗時、タスク分割を検討させる
 				if (subTaskTurns !== 1 && lastSelectedEffect === taskCheckEffect) {
 					orchestrator.oneTimeInstruction =
