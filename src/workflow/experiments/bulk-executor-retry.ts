@@ -20,16 +20,14 @@ async function main() {
 
 	// 初回プロンプトの構築
 	let currentPrompt = `
-You are an expert developer. Based on the GOAL below, output ALL necessary steps (file creations and shell commands) to complete the task.
+You are an expert developer. Based on the GOAL below, output ALL necessary file creations and shell commands to complete the task at once.
 
 [GOAL]
 ${goalContent}
 
-[IMPORTANT REQUIREMENTS]
-1. Use Node.js.
-2. Design tests using 'node:test'.
-3. **You must include [SHELL] commands to install dependencies (e.g., npm install) if you create or modify package.json.**
-4. Ensure 'npm test' will work in the final state.
+[REQUIREMENTS]
+1. Use Node.js for development.
+2. Design tests using 'node:test' and ensure they can be executed with 'npm test'.
 
 [RULE]
 You must output using the following formats strictly. Do not use markdown code blocks for the output itself.
@@ -77,8 +75,11 @@ Execute in order. Start now.
 			match = pattern.exec(rawOutput);
 		}
 
-		// 3. テスト実行 (ここを堅牢に修正)
-		console.log("最終チェック (npm test) を開始します...");
+		// 3. テスト実行の準備と実行
+		console.log("🛠️  依存関係をインストール中 (npm i)...");
+		await shellExecEffect.handler({ command: "npm i", cwd: process.cwd(), timeout: 300000 });
+
+		console.log("🧪 最終チェック (npm test) を開始します...");
 
 		const testResponse = await shellExecEffect.handler({
 			command: "npm test",
