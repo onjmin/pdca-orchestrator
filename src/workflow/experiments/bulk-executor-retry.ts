@@ -95,6 +95,7 @@ Execute in order. Start now.
 
 		// 4. 失敗時のリトライ準備
 		console.error(`❌ テスト失敗 (試行 ${attempt})`);
+		console.error(testResponse.error);
 		if (attempt >= MAX_RETRIES) {
 			console.error("最大リトライ回数に達しました。");
 			break;
