@@ -13,7 +13,7 @@ import { shellExecEffect } from "../../effects/shell/exec";
  * この足場職人は、現場を更地にし、資材（パッケージ）を揃え、
  * 一気にプロジェクトの土台を組み上げます。
  */
-async function main() {
+export async function run() {
 	console.log("--- 足場職人が起きました（一括構築・自動検査モード） ---");
 
 	const goalPath = resolve(process.cwd(), "GOAL.md");
@@ -154,5 +154,3 @@ ${goalContent}
 `.trim();
 	}
 }
-
-main().catch(console.error);

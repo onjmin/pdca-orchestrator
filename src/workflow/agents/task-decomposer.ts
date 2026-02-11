@@ -1,26 +1,26 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
-import { orchestrator } from "../core/orchestrator";
-import { type Task, taskStack } from "../core/stack-manager";
-import { aiTroubleshootEffect } from "../effects/ai/troubleshoot";
-import { fileCreateEffect } from "../effects/file/create";
-import { fileGrepEffect } from "../effects/file/grep";
-import { fileInsertAtEffect } from "../effects/file/insert_at";
-import { fileListTreeEffect } from "../effects/file/list_tree";
-import { filePatchEffect } from "../effects/file/patch";
-import { fileReadLinesEffect } from "../effects/file/read_lines";
-import { gitCheckoutEffect } from "../effects/git/checkout";
-import { gitCloneEffect } from "../effects/git/clone";
-import { githubCreatePullRequestEffect } from "../effects/github/create-pull-request";
-import { shellExecEffect } from "../effects/shell/exec";
-import { taskCheckEffect } from "../effects/task/check";
-import { taskPlanEffect } from "../effects/task/plan";
-import { taskSplitEffect } from "../effects/task/split";
-import { taskWaitEffect } from "../effects/task/wait";
-import { webFetchEffect } from "../effects/web/fetch";
-import { webSearchEffect } from "../effects/web/search";
-import { webWikipediaEffect } from "../effects/web/wikipedia";
+import { orchestrator } from "../../core/orchestrator";
+import { type Task, taskStack } from "../../core/stack-manager";
+import { aiTroubleshootEffect } from "../../effects/ai/troubleshoot";
+import { fileCreateEffect } from "../../effects/file/create";
+import { fileGrepEffect } from "../../effects/file/grep";
+import { fileInsertAtEffect } from "../../effects/file/insert_at";
+import { fileListTreeEffect } from "../../effects/file/list_tree";
+import { filePatchEffect } from "../../effects/file/patch";
+import { fileReadLinesEffect } from "../../effects/file/read_lines";
+import { gitCheckoutEffect } from "../../effects/git/checkout";
+import { gitCloneEffect } from "../../effects/git/clone";
+import { githubCreatePullRequestEffect } from "../../effects/github/create-pull-request";
+import { shellExecEffect } from "../../effects/shell/exec";
+import { taskCheckEffect } from "../../effects/task/check";
+import { taskPlanEffect } from "../../effects/task/plan";
+import { taskSplitEffect } from "../../effects/task/split";
+import { taskWaitEffect } from "../../effects/task/wait";
+import { webFetchEffect } from "../../effects/web/fetch";
+import { webSearchEffect } from "../../effects/web/search";
+import { webWikipediaEffect } from "../../effects/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
 const allEffects = [
@@ -72,7 +72,7 @@ const observationEffects = new Set<AllEffect>([
 ]);
 const observationRegistry = new Map([...observationEffects].map((e) => [e.name, e]));
 
-async function main() {
+export async function run() {
 	console.log("--- 小人が起きました ---");
 
 	// 初期タスク読み込み
@@ -181,7 +181,3 @@ async function main() {
 		console.log("--- 小人が道具を片付けて寝ます ---");
 	}
 }
-
-main().catch((err) => {
-	console.error(err);
-});
