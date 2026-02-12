@@ -128,7 +128,7 @@ You are an autonomous agent.
 ### Goal and Strategy
 ${taskInfo}
 
-### Available Effects
+### Available Tools
 ${tools}
 
 ### Observation
@@ -184,7 +184,7 @@ Effect: (The exact effect name from the list above)
 			this.lastEffectResult = {
 				success: false,
 				summary: `Decision failed: Selected effect "${found || "unknown"}" is not available.`,
-				error: `AVAILABLE_EFFECTS: ${effectNames.join(", ")}`,
+				error: `AVAILABLE_TOOLS: ${effectNames.join(", ")}`,
 			};
 			return null;
 		}
