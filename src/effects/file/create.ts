@@ -14,16 +14,16 @@ export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
 
 /**
  * EFFECT: file.create
- * ファイルの新規作成、または全文上書きを行います。
+ * ファイルの新規作成を行います。既存ファイルの上書きは禁止します。
  */
 export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 	name: "file.create",
 	description:
-		"Create a file with the specified content. If the file already exists, it will be completely overwritten. Parent directories are created automatically.",
+		"Create a NEW file with the specified content. This effect will FAIL if the file already exists. To modify existing files, use 'file.patch' instead. Parent directories are created automatically.",
 	inputSchema: {
 		path: {
 			type: "string",
-			description: "Target file path.",
+			description: "Target file path (must not exist).",
 		},
 		content: {
 			type: "string",
@@ -37,18 +37,22 @@ export const fileCreateEffect = createEffect<FileCreateArgs, void>({
 			const { path: filePath, content } = FileCreateArgsSchema.parse(args);
 			const safePath = getSafePath(filePath);
 
-			const isNewFile = !fs.existsSync(safePath);
+			// 既存ファイルチェック：上書きを物理的に阻止する
+			if (fs.existsSync(safePath)) {
+				return effectResult.fail(
+					`File "${filePath}" ALREADY EXISTS. Overwriting is forbidden with 'file.create'. ` +
+						`Please use 'file.patch' to modify this file, or delete it first if a complete recreate is truly necessary.`,
+				);
+			}
+
 			fs.mkdirSync(path.dirname(safePath), { recursive: true });
 			fs.writeFileSync(safePath, content, "utf8");
 
-			// AIを安心させるための情報を収集
 			const stats = fs.statSync(safePath);
 			const lines = content.split("\n");
 
-			// summary に具体的な情報を詰め込み、ObservationとしてAIに認識させる
-			const statusLabel = isNewFile ? "CREATED" : "UPDATED (Overwritten)";
 			const summary = [
-				`Successfully ${statusLabel}: ${filePath}`,
+				`Successfully CREATED: ${filePath}`,
 				`Size: ${stats.size} bytes`,
 				`Lines: ${lines.length}`,
 				`Content Snapshot:`,
