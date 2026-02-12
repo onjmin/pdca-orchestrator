@@ -82,7 +82,7 @@ export async function run() {
 		title: "Initial Goal",
 		description: "Establish the development environment.",
 		dod: "Goal achieved.",
-		turns: 1,
+		turns: 0,
 	};
 
 	try {
@@ -94,7 +94,7 @@ export async function run() {
 		}
 
 		const [title, description, dod] = parts;
-		initialTask = { title, description, dod, turns: 1 };
+		initialTask = { title, description, dod, turns: 0 };
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		throw new Error(`[CRITICAL] Failed to initialize task: ${msg}`);
@@ -142,10 +142,14 @@ export async function run() {
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
-				// 強制介入: 分割の推奨（3ターン目）
+				// 強制介入: 分割の検討（3ターン目）
 				if (currentTask.turns === 3) {
-					orchestrator.oneTimeInstruction =
-						"Based on your strategy, use 'task.split' to break the goal into manageable sub-tasks. This will help prevent loops and ensure clear progress.";
+					orchestrator.oneTimeInstruction = `
+[DECIDE: SPLIT OR EXECUTE]
+Review your strategy. 
+1. If the current task still requires multiple distinct steps, you MUST use 'task.split' to break it down into unambiguous, single-purpose sub-tasks.
+2. If the current task is already simple enough to be completed with a single action (e.g., just creating one file), you may skip splitting and proceed to execute.
+    `.trim();
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
