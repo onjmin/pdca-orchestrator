@@ -145,7 +145,7 @@ Effect: (The exact effect name from the list above)
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
 
-		await savePromptLog("1-select-next", prompt);
+		await savePromptLog("1-select-next-input", prompt);
 		const rawContent = await llm.complete(prompt);
 		await savePromptLog("1-select-next-output", rawContent);
 
@@ -258,7 +258,7 @@ Refer to the Observation to ensure the arguments are appropriate for the current
 Respond with ONLY the JSON object.
 `.trim();
 
-		await savePromptLog("2-dispatch-args", argPrompt);
+		await savePromptLog("2-dispatch-args-input", argPrompt);
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
 		await savePromptLog("2-dispatch-args-output", JSON.stringify(args));
 		if (jsonError || !args || typeof args !== "object") {
@@ -296,7 +296,7 @@ If this is code, provide the full source code.
 - Output ONLY the raw content.
 `.trim();
 
-			await savePromptLog("3-dispatch-raw", rawPrompt);
+			await savePromptLog("3-dispatch-raw-input", rawPrompt);
 			const rawContent = await llm.complete(rawPrompt);
 			await savePromptLog("3-dispatch-raw-output", rawContent);
 
