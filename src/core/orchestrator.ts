@@ -1,6 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import type { EffectDefinition, EffectField, EffectResponse } from "../effects/types";
+import { isDebugMode, savePromptLog } from "./debug-log";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
 import { truncateForPrompt } from "./utils";
@@ -148,6 +147,7 @@ Effect: (The exact effect name from the list above)
 
 		await savePromptLog("1-select-next", prompt);
 		const rawContent = await llm.complete(prompt);
+		await savePromptLog("1-select-next-output", rawContent);
 
 		if (!rawContent) {
 			this.lastEffectResult = {
@@ -195,7 +195,7 @@ Effect: (The exact effect name from the list above)
 			rationale: rationale,
 		});
 
-		if (process.env.DEBUG_MODE === "1") {
+		if (isDebugMode) {
 			console.log({
 				chosenEffect: found,
 				rationale: rationale,
@@ -260,6 +260,7 @@ Respond with ONLY the JSON object.
 
 		await savePromptLog("2-dispatch-args", argPrompt);
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
+		await savePromptLog("2-dispatch-args-output", JSON.stringify(args));
 		if (jsonError || !args || typeof args !== "object") {
 			this.lastEffectResult = {
 				success: false,
@@ -297,6 +298,7 @@ If this is code, provide the full source code.
 
 			await savePromptLog("3-dispatch-raw", rawPrompt);
 			const rawContent = await llm.complete(rawPrompt);
+			await savePromptLog("3-dispatch-raw-output", rawContent);
 
 			if (!rawContent) {
 				this.lastEffectResult = {
@@ -328,17 +330,3 @@ If this is code, provide the full source code.
 		}
 	},
 };
-
-/**
- * デバッグ用：最新のプロンプトをファイルに上書き保存する
- */
-async function savePromptLog(fileName: string, prompt: string) {
-	if (process.env.DEBUG_MODE !== "1") return;
-
-	const logDir = path.join(process.cwd(), "logs", "prompts");
-	if (!fs.existsSync(logDir)) {
-		fs.mkdirSync(logDir, { recursive: true });
-	}
-
-	await fs.promises.writeFile(path.join(logDir, `${fileName}.txt`), prompt, "utf8");
-}

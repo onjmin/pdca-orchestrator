@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
+import { initDebugLog, isDebugMode, setLogTurn } from "../../core/debug-log";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
 import { aiTroubleshootEffect } from "../../effects/ai/troubleshoot";
@@ -90,6 +91,7 @@ export async function run() {
 
 	let totalTurns = 0;
 	const MAX_TURNS = 64;
+	initDebugLog();
 
 	let nextEffect: AllEffect | null = null;
 
@@ -98,8 +100,9 @@ export async function run() {
 			totalTurns++;
 			orchestrator.oneTimeInstruction = "";
 
-			if (process.env.DEBUG_MODE === "1") {
+			if (isDebugMode) {
 				console.log(`${totalTurns}ターン目`);
+				setLogTurn(totalTurns);
 			}
 
 			const currentTask = taskStack.currentTask;
