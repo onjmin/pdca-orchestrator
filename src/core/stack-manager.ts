@@ -17,6 +17,7 @@ class StackManager {
 
 	// 進捗率の単調性を保証するための内部状態
 	private _lastProgress = 0;
+	private _maxTotalSeen = 0;
 
 	push(tasks: Task | Task[]) {
 		if (Array.isArray(tasks)) {
@@ -42,31 +43,16 @@ class StackManager {
 		return finishedTask;
 	}
 
-	/**
-	 * 計算論的に正しい進捗率 (%) の算出
-	 *
-	 * 不変条件:
-	 * - 単調非減少
-	 * - 完了時に 100%
-	 *
-	 * 観測上の stack 増減はノイズとして除去する
-	 */
 	get progress(): number {
 		const currentDepth = this.stack.length;
-		const total = this._totalPoppedCount + currentDepth;
+		// 過去最大の「想定総数」を分母のベースにする
+		this._maxTotalSeen = Math.max(this._maxTotalSeen, this._totalPoppedCount + currentDepth);
 
-		if (total === 0) return 0;
+		if (this._maxTotalSeen === 0) return 0;
+		if (currentDepth === 0 && this._totalPoppedCount > 0) return 100;
 
-		let computed: number;
+		const computed = Math.round((this._totalPoppedCount / this._maxTotalSeen) * 100);
 
-		// 全てのタスクが pop され、スタックが空なら 100%
-		if (currentDepth === 0 && this._totalPoppedCount > 0) {
-			computed = 100;
-		} else {
-			computed = Math.round((this._totalPoppedCount / total) * 100);
-		}
-
-		// 計算工学的に正しい進捗：単調非減少を保証
 		this._lastProgress = Math.max(this._lastProgress, computed);
 		return this._lastProgress;
 	}
