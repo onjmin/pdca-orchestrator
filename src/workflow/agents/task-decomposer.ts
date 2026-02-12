@@ -182,7 +182,10 @@ Review your strategy.
 				return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 			})();
 
-			if (!nextEffect) continue;
+			if (!nextEffect) {
+				// 不正なエフェクトはlsに丸め込む
+				nextEffect = fileListTreeEffect;
+			}
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
