@@ -127,24 +127,25 @@ export async function run() {
 			currentTask.turns++;
 
 			nextEffect = await (async () => {
-				const isInitialParentTask = taskStack.currentTask === initialTask;
+				// const isInitialParentTask = taskStack.currentTask === initialTask;
 
 				// 強制介入: 現状把握（全タスク共通の1ターン目）
 				if (currentTask.turns === 1) {
 					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
 				}
 
-				// 強制介入: 最初の親タスクの2ターン目：分割を強制
-				if (isInitialParentTask && currentTask.turns === 2) {
+				// 強制介入: 計画の強制（2ターン目）
+				if (currentTask.turns === 2) {
 					orchestrator.oneTimeInstruction =
-						"The goal is complex. You MUST use 'task.split' to break it down into smaller sub-tasks. Do not start work until the task is split.";
+						"Analyze the goal and formulate a clear strategy. Use 'task.plan' to document your step-by-step approach before taking action.";
+					// task.planを確実に選ばせるなら、plan用のRegistryを渡すのもアリ
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
-				// 強制介入: 最初の親タスクの3ターン目：それでも分割してなければ再度警告
-				if (isInitialParentTask && currentTask.turns === 3 && !currentTask.strategy) {
+				// 強制介入: 分割の推奨（3ターン目）
+				if (currentTask.turns === 3) {
 					orchestrator.oneTimeInstruction =
-						"You haven't split the task yet. Use 'task.split' now to ensure a manageable roadmap.";
+						"Based on your strategy, use 'task.split' to break the goal into manageable sub-tasks. This will help prevent loops and ensure clear progress.";
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
