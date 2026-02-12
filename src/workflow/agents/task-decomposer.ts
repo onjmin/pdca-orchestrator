@@ -49,6 +49,19 @@ type AllEffect = (typeof allEffects)[number];
 const allRegistry = new Map(allEffects.map((e) => [e.name, e]));
 
 /**
+ * 変更系Effects (Mutating Effects)
+ * ファイルの書き換え、外部環境の操作、プロセス待機など
+ */
+const mutatingEffects = new Set<AllEffect>([
+	fileCreateEffect,
+	fileInsertAtEffect,
+	filePatchEffect,
+	gitCloneEffect,
+	gitCheckoutEffect,
+	taskWaitEffect, // 状態が変化する可能性があるためこちらに分類
+]);
+
+/**
  * 観察系Effects (Observation Effects)
  * 読み取り、検索、解析など
  */
@@ -93,7 +106,10 @@ export async function run() {
 	const MAX_TURNS = 64;
 	initDebugLog();
 
+	let observationsAfterMutating = 0;
+
 	let nextEffect: AllEffect | null = null;
+	let lastSelectedEffect: AllEffect | null = null;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -132,6 +148,31 @@ export async function run() {
 					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 				}
 
+				// 強制介入: DoDチェック失敗時、タスク分割を検討させる
+				if (currentTask.turns !== 1 && lastSelectedEffect === taskCheckEffect) {
+					orchestrator.oneTimeInstruction =
+						"Evaluate if the current DoD is simple enough to be completed in a single step. If it feels complex or multi-faceted, use 'task.split' to break it down into smaller, manageable sub-tasks.";
+					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+				}
+
+				// 強制介入: 前ターンが変更系Effectsであれば、観察系Effectsを選出
+				if (lastSelectedEffect && mutatingEffects.has(lastSelectedEffect)) {
+					observationsAfterMutating++;
+					orchestrator.oneTimeInstruction = `Verify that the changes made by '${lastSelectedEffect.name}' were applied correctly and that the results align with the expected state.`;
+					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+				}
+
+				// 強制介入: 上のルールが規定回数以上発動していれば、DoDチェック
+				if (observationsAfterMutating > 3) {
+					observationsAfterMutating = 0;
+					orchestrator.recordControlSnapshot({
+						chosenEffect: taskCheckEffect.name,
+						rationale:
+							"Sufficient observations have been conducted following modifications. Transitioning to final task verification (DoD).",
+					});
+					return taskCheckEffect;
+				}
+
 				// 通常
 				return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
 			})();
@@ -140,6 +181,7 @@ export async function run() {
 
 			// --- effect 実行 ---
 			await orchestrator.dispatch(nextEffect, currentTask);
+			lastSelectedEffect = nextEffect;
 
 			if (totalTurns >= MAX_TURNS) {
 				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");
