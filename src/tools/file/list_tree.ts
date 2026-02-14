@@ -15,7 +15,7 @@ export interface FileListTreeData {
 }
 
 /**
- * EFFECT: file.list_tree
+ * TOOL: file.list_tree
  * tree コマンドを使用してディレクトリ構造を視覚化します。
  */
 export const fileListTreeTool = createTool<FileListTreeArgs, FileListTreeData>({

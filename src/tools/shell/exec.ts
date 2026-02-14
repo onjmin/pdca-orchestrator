@@ -19,7 +19,7 @@ export interface ShellExecData {
 }
 
 /**
- * EFFECT: shell.exec
+ * TOOL: shell.exec
  * 任意のシェルコマンドを実行します。
  */
 export const shellExecTool = createTool<ShellExecArgs, ShellExecData>({

@@ -16,7 +16,7 @@ export interface CheckData {
 }
 
 /**
- * EFFECT: task.check
+ * TOOL: task.check
  * タスクの完了を判定します。
  */
 export const taskCheckTool = createTool<CheckArgs, CheckData>({

@@ -9,7 +9,7 @@ export const TroubleshootArgsSchema = z.object({
 });
 
 /**
- * EFFECT: ai.troubleshoot
+ * TOOL: ai.troubleshoot
  * 期待した結果と現実の差異を特定し、詰まりを解消するための直接的な手順を生成します。
  */
 export const aiTroubleshootTool = createTool<z.infer<typeof TroubleshootArgsSchema>, string>({

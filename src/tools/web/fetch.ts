@@ -19,7 +19,7 @@ export interface WebFetchData {
 }
 
 /**
- * EFFECT: web.fetch
+ * TOOL: web.fetch
  * 指定したURLからコンテンツを取得します。
  */
 export const webFetchTool = createTool<WebFetchArgs, WebFetchData>({

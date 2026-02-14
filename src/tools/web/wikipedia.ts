@@ -14,7 +14,7 @@ export interface WebWikipediaData {
 }
 
 /**
- * EFFECT: web.wikipedia
+ * TOOL: web.wikipedia
  * Wikipedia の API を使用して、特定のトピックに関する情報を取得します。
  */
 export const webWikipediaTool = createTool<WebWikipediaArgs, WebWikipediaData>({

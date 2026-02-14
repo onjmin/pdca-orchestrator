@@ -13,7 +13,7 @@ export const FileCreateArgsSchema = z.object({
 export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
 
 /**
- * EFFECT: file.create
+ * TOOL: file.create
  * ファイルの新規作成を行います。既存ファイルの上書きは禁止します。
  */
 export const fileCreateTool = createTool<FileCreateArgs, void>({

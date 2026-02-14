@@ -29,7 +29,7 @@ interface TavilyResponse {
 }
 
 /**
- * EFFECT: web.search
+ * TOOL: web.search
  * 外部知識が必要な場合にインターネット検索を実行します。
  */
 export const webSearchTool = createTool<WebSearchArgs, WebSearchData>({

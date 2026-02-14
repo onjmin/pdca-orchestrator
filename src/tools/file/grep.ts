@@ -16,7 +16,7 @@ export interface FileGrepData {
 }
 
 /**
- * EFFECT: file.grep
+ * TOOL: file.grep
  * システムの grep コマンドを使用してパターンを高速検索します。
  */
 export const fileGrepTool = createTool<FileGrepArgs, FileGrepData>({

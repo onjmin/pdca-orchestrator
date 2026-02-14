@@ -10,7 +10,7 @@ export const TaskWaitArgsSchema = z.object({
 export type TaskWaitArgs = z.infer<typeof TaskWaitArgsSchema>;
 
 /**
- * EFFECT: task.wait
+ * TOOL: task.wait
  * 指定した時間だけ待機し、Discord にその旨を報告します。
  */
 export const taskWaitTool = createTool<TaskWaitArgs, void>({

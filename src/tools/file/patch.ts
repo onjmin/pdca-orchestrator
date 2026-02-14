@@ -14,7 +14,7 @@ export const FilePatchArgsSchema = z.object({
 export type FilePatchArgs = z.infer<typeof FilePatchArgsSchema>;
 
 /**
- * EFFECT: file.patch
+ * TOOL: file.patch
  * 指定された行範囲 (startLine-endLine) を新しい内容で置換します。
  */
 export const filePatchTool = createTool<FilePatchArgs, { path: string }>({

@@ -11,7 +11,7 @@ export const PlanArgsSchema = z.object({
 export type PlanArgs = z.infer<typeof PlanArgsSchema>;
 
 /**
- * EFFECT: task.plan
+ * TOOL: task.plan
  * 戦略を策定し、内容を Discord に報告します。
  */
 export const taskPlanTool = createTool<PlanArgs, void>({

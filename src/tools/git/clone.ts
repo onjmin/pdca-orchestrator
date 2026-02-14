@@ -12,7 +12,7 @@ export const GitCloneArgsSchema = z.object({
 export type GitCloneArgs = z.infer<typeof GitCloneArgsSchema>;
 
 /**
- * EFFECT: git.clone
+ * TOOL: git.clone
  * 指定されたリポジトリをセーフな作業ディレクトリにクローンします。
  */
 export const gitCloneTool = createTool<GitCloneArgs, void>({

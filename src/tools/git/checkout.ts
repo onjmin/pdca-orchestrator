@@ -13,7 +13,7 @@ export const GitCheckoutArgsSchema = z.object({
 export type GitCheckoutArgs = z.infer<typeof GitCheckoutArgsSchema>;
 
 /**
- * EFFECT: git.checkout
+ * TOOL: git.checkout
  * 指定ブランチへ切り替えます。
  */
 export const gitCheckoutTool = createTool<GitCheckoutArgs, void>({

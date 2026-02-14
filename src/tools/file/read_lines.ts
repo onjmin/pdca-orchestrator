@@ -21,7 +21,7 @@ export interface FileReadLinesData {
 }
 
 /**
- * EFFECT: file.read_lines
+ * TOOL: file.read_lines
  * 特定の行範囲を行番号付きで読み取ります。
  */
 export const fileReadLinesTool = createTool<FileReadLinesArgs, FileReadLinesData>({

@@ -23,7 +23,7 @@ export interface CreatePullRequestData {
 }
 
 /**
- * EFFECT: github.create_pull_request
+ * TOOL: github.create_pull_request
  * ローカルの変更をコミットし、リモートへプッシュした上で、GitHub上でPRを作成します。
  * 小人が仕事を完成させた際の「最終報告」用ツールです。
  */

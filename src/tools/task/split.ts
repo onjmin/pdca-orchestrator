@@ -14,7 +14,7 @@ export const SplitArgsSchema = z.object({
 export type SplitArgs = z.infer<typeof SplitArgsSchema>;
 
 /**
- * EFFECT: task.split
+ * TOOL: task.split
  * サブタスクをスタックに積みます。
  */
 export const taskSplitTool = createTool<SplitArgs, void>({
