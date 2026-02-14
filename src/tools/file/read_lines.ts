@@ -55,10 +55,10 @@ export const fileReadLinesTool = createTool<FileReadLinesArgs, FileReadLinesData
 
 			const requestedCount = endLine - startLine + 1;
 			const isTruncated = requestedCount > MAX_READ_LIMIT;
-			const tooliveEndLine = isTruncated ? startLine + MAX_READ_LIMIT - 1 : endLine;
+			const effectiveEndLine = isTruncated ? startLine + MAX_READ_LIMIT - 1 : endLine;
 
 			// cat -n で行番号を付与し、sed で抽出
-			const command = `cat -n "${safePath}" | sed -n '${startLine},${tooliveEndLine}p'`;
+			const command = `cat -n "${safePath}" | sed -n '${startLine},${effectiveEndLine}p'`;
 
 			const stdout = execSync(command, {
 				encoding: "utf8",
@@ -69,8 +69,8 @@ export const fileReadLinesTool = createTool<FileReadLinesArgs, FileReadLinesData
 			const lines = stdout.split("\n").filter((line) => line.length > 0);
 
 			const summary = isTruncated
-				? `Read ${lines.length} lines (L${startLine}-L${tooliveEndLine}). [Truncated from ${requestedCount} lines]`
-				: `Read ${lines.length} lines (L${startLine}-L${tooliveEndLine}).`;
+				? `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}). [Truncated from ${requestedCount} lines]`
+				: `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}).`;
 
 			return toolResult.ok(summary, {
 				lines,

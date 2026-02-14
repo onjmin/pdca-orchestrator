@@ -4,7 +4,7 @@ import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const TroubleshootArgsSchema = z.object({
 	error: z.string(),
-	last_action: z.string(),
+	lastAction: z.string(),
 	context: z.string().optional(),
 });
 
@@ -21,7 +21,7 @@ export const aiTroubleshootTool = createTool<z.infer<typeof TroubleshootArgsSche
 			type: "string",
 			description: "The specific log or state that is preventing progress.",
 		},
-		last_action: {
+		lastAction: {
 			type: "string",
 			description: "The exact tool call or command that didn't work as expected.",
 		},
@@ -33,14 +33,14 @@ export const aiTroubleshootTool = createTool<z.infer<typeof TroubleshootArgsSche
 	},
 	handler: async (args): Promise<ToolResponse<string>> => {
 		try {
-			const { error, last_action, context } = args;
+			const { error, lastAction, context } = args;
 
 			const systemPrompt = `Analyze the state and resolve the discrepancy.
-1. Determine why the last_action failed based on the error and context.
+1. Determine why the lastaction failed based on the error and context.
 2. Output a direct, tactical sequence of steps to fix the issue.
 3. No prose. No preamble. Only technical instructions.`;
 
-			const userPrompt = `ERROR: ${error}\nACTION: ${last_action}\nCONTEXT: ${context}`;
+			const userPrompt = `ERROR: ${error}\nACTION: ${lastAction}\nCONTEXT: ${context}`;
 
 			const result = await llm.complete(`${systemPrompt}\n\n${userPrompt}`);
 

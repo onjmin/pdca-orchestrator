@@ -1,3 +1,10 @@
+// スネークケース（_を含む）を禁止するためのユーティリティ型
+type NoSnakeCase<T> = {
+	[K in keyof T]: K extends `${string}_${string}`
+		? `Snake case is not allowed: ${K & string}`
+		: T[K];
+};
+
 export interface ToolField {
 	type: "string" | "number" | "boolean";
 	description: string;
@@ -16,7 +23,9 @@ export interface ToolDefinition<T, R = void> {
 	handler: (args: T) => Promise<ToolResponse<R>>;
 }
 
-export function createTool<T, R = void>(definition: ToolDefinition<T, R>): ToolDefinition<T, R> {
+export function createTool<T extends NoSnakeCase<T>, R = void>(
+	definition: ToolDefinition<T, R>,
+): ToolDefinition<T, R> {
 	return definition;
 }
 
