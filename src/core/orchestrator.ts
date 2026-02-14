@@ -1,3 +1,4 @@
+import { shellExecTool } from "../tools/shell/exec";
 import type { ToolDefinition, ToolField, ToolResponse } from "../tools/types";
 import { isDebugMode, savePromptLog } from "./debug-log";
 import { llm, repairAndParseJSON } from "./llm-client";
@@ -179,6 +180,13 @@ Tool: (The exact tool name from the list above)
 					const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 					return new RegExp(`\\b${escapedName}\\b`, "i").test(rawContent);
 				}) ?? null;
+		}
+
+		// 3. 特殊なエイリアスや、古い名前/間違えやすい名前の最終救済
+		if (!found || !registry.has(found)) {
+			if (/container\.exec/.test(rawContent)) {
+				found = shellExecTool.name;
+			}
 		}
 
 		if (!found || !registry.has(found)) {

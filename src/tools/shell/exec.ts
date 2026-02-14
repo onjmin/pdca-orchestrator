@@ -4,54 +4,41 @@ import { getSafePath } from "../file/utils";
 import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const ShellExecArgsSchema = z.object({
-	cwd: z.string().describe("Directory to execute the command. Defaults to project root."),
-	command: z.string().describe("The shell command to execute (e.g., 'npm test', 'ls -la')."),
-	timeout: z.number().describe("Timeout in milliseconds (default: 60000)."),
+	cmd: z.string().describe("The shell command to execute (e.g., 'npm test', 'ls -la')."),
 });
 
 export type ShellExecArgs = z.infer<typeof ShellExecArgsSchema>;
 
-/**
- * 実行結果のデータ構造
- */
 export interface ShellExecData {
 	stdout: string;
 }
 
 /**
  * TOOL: shell.exec
- * 任意のシェルコマンドを実行します。
+ * プロジェクトルートで任意のシェルコマンドを実行します。
  */
 export const shellExecTool = createTool<ShellExecArgs, ShellExecData>({
 	name: "shell.exec",
-	description:
-		"Execute an arbitrary shell command in the local environment. Use this to run tests, build the project, or check environment status.",
+	description: "Execute a shell command in the project root.",
 	inputSchema: {
-		cwd: {
-			type: "string",
-			description: "Directory to execute the command. Use '.' for project root.",
-		},
-		command: {
+		cmd: {
 			type: "string",
 			description: "The shell command to execute.",
-		},
-		timeout: {
-			type: "number",
-			description: "Timeout in milliseconds.",
 		},
 	},
 
 	handler: async (args: ShellExecArgs): Promise<ToolResponse<ShellExecData>> => {
 		try {
-			const { cwd, command, timeout } = ShellExecArgsSchema.parse(args);
-			const safeCwd = getSafePath(cwd || ".");
+			const { cmd } = ShellExecArgsSchema.parse(args);
+			// 常にプロジェクトルート（固定値）を使用
+			const safeCwd = getSafePath(".");
 
-			console.log(`[ShellExec] Executing: ${command} (in ${safeCwd})`);
+			console.log(`[ShellExec] Executing: ${cmd} (in ${safeCwd})`);
 
-			const stdout = execSync(command, {
+			const stdout = execSync(cmd, {
 				cwd: safeCwd,
 				encoding: "utf8",
-				timeout: timeout,
+				timeout: 60000, // 内部で妥当な値を固定（必要なら定数化）
 				stdio: "pipe",
 				env: {
 					...process.env,
