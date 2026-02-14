@@ -279,14 +279,9 @@ Tool: (The exact tool name from the list above)
 		const observationText = this.getCombinedObservation();
 
 		// プロンプト用のスキーマから isRawData フィールドを除外する
-		const inputSchemaOmitted = Object.entries(tool.inputSchema).reduce(
-			(acc, [key, field]) => {
-				if (!(field as ToolField).isRawData) {
-					acc[key] = field;
-				}
-				return acc;
-			},
-			{} as Record<string, ToolField>,
+		const inputSchemaOmitted = filterObject(
+			tool.inputSchema,
+			(_, field) => !(field as ToolField).isRawData,
 		);
 
 		const argPrompt = `
@@ -446,3 +441,21 @@ function normalizeArgs(
 
 	return finalArgs;
 }
+
+/**
+ * オブジェクトのプロパティを条件に基づいてフィルタリングする
+ */
+export const filterObject = <T extends Record<string, unknown>>(
+	obj: T,
+	predicate: (key: string, value: T[keyof T]) => boolean,
+): Partial<T> => {
+	return (Object.entries(obj) as [keyof T, T[keyof T]][]).reduce(
+		(acc, [key, value]) => {
+			if (predicate(key as string, value)) {
+				acc[key] = value;
+			}
+			return acc;
+		},
+		{} as Partial<T>,
+	);
+};
