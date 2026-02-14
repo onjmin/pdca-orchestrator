@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { webFetchEffect } from "../../effects/web/fetch";
+import { webFetchEffect } from "../../tools/web/fetch";
 
 async function testFetch() {
 	console.log("--- Web Fetch Effect Test Start ---");

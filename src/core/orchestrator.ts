@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolField, ToolResponse } from "../effects/types";
+import type { ToolDefinition, ToolField, ToolResponse } from "../tools/types";
 import { isDebugMode, savePromptLog } from "./debug-log";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";

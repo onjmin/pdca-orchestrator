@@ -2,10 +2,10 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { llm } from "../../core/llm-client";
-import { fileCreateEffect } from "../../effects/file/create";
-import { fileListTreeEffect } from "../../effects/file/list_tree";
-import { getSafePath } from "../../effects/file/utils";
-import { shellExecEffect } from "../../effects/shell/exec";
+import { fileCreateEffect } from "../../tools/file/create";
+import { fileListTreeEffect } from "../../tools/file/list_tree";
+import { getSafePath } from "../../tools/file/utils";
+import { shellExecEffect } from "../../tools/shell/exec";
 
 /**
  * Scaffolder (足場職人)

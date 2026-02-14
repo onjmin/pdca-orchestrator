@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { webSearchEffect } from "../../effects/web/search";
+import { webSearchEffect } from "../../tools/web/search";
 
 async function testWebSearch() {
 	console.log("--- Tavily Search Effect Test Start ---");

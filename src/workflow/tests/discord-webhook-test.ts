@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { emitDiscordInternalLog } from "../../effects/task/utils";
+import { emitDiscordInternalLog } from "../../tools/task/utils";
 
 /**
  * emitDiscordInternalLog を単体で実行

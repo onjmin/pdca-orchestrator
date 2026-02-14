@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { fileCreateEffect } from "../../effects/file/create";
+import { fileCreateEffect } from "../../tools/file/create";
 
 async function main() {
 	console.log("🚀 Starting file.create test...");

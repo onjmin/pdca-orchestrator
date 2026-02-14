@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { shellExecEffect } from "../../effects/shell/exec";
+import { shellExecEffect } from "../../tools/shell/exec";
 
 async function testShellExec() {
 	console.log("--- Shell Exec Effect Test Start ---");

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { webWikipediaEffect } from "../../effects/web/wikipedia";
+import { webWikipediaEffect } from "../../tools/web/wikipedia";
 
 async function testWikipedia() {
 	console.log("--- Wikipedia Effect Test Start ---");
