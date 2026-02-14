@@ -36,17 +36,26 @@ export const orchestrator = {
 	lastControlSnapshot: null as ControlSnapshot | null,
 	controlHistory: [] as ControlSnapshot[],
 
+	// ツール実行直前に記録される引数
+	lastToolParameters: null as Record<string, unknown> | null,
+
 	/**
-	 * 制御判断の状態をスナップショットとして記録する
+	 * 制御判断の状態をスナップショットとして記録する（思考フェーズ）
 	 */
 	recordControlSnapshot(params: { chosenTool: string | null; rationale: string }) {
 		const snapshot: ControlSnapshot = {
 			chosenTool: params.chosenTool,
 			rationale: params.rationale,
 		};
-
 		this.lastControlSnapshot = snapshot;
 		this.controlHistory.push(snapshot);
+	},
+
+	/**
+	 * 実際にツールに渡される引数を記録する（実行直前フェーズ）
+	 */
+	recordToolExecution(parameters: Record<string, unknown>) {
+		this.lastToolParameters = parameters;
 	},
 
 	/**
@@ -55,19 +64,20 @@ export const orchestrator = {
 	getCombinedObservation(): string {
 		const parts = ["### External Observation (Last Tool Result)", this.lastToolResult];
 
-		const { lastControlSnapshot } = this;
-
 		if (this.lastControlSnapshot) {
-			parts.push(
-				"",
-				"### Internal Observation (Control Context)",
-				lastControlSnapshot?.chosenTool
-					? `
-Your previous action: "${lastControlSnapshot.chosenTool}"
-Your previous rationale: "${lastControlSnapshot.rationale}"
-`.trim()
-					: "In the previous step, no action was taken.",
-			);
+			const { chosenTool, rationale } = this.lastControlSnapshot;
+			const params = this.lastToolParameters;
+
+			let contextText = chosenTool
+				? `Previous Action: "${chosenTool}"\nRationale: "${rationale}"`
+				: "In the previous step, no action was taken.";
+
+			// 実際に使われた引数を独立して表示
+			if (params && Object.keys(params).length > 0) {
+				contextText += `\nFinal Parameters: ${JSON.stringify(params)}`;
+			}
+
+			parts.push("", "### Internal Observation (Control Context)", contextText.trim());
 		}
 
 		return parts.join("\n");
@@ -253,6 +263,23 @@ Tool: (The exact tool name from the list above)
 		// 2. Raw Dataの補完 (STEP 3)
 		const finalArgs = await this.retrieveRawData(tool, task, argsToUse);
 		if (!finalArgs) return;
+
+		// --- [Execution Pre-process] ---
+		// プロンプト記録用に、巨大なフィールドだけを省略形に変換する
+		const promptArgs: Record<string, unknown> = {};
+
+		for (const [key, value] of Object.entries(finalArgs)) {
+			const fieldConfig = tool.inputSchema[key] as ToolField;
+
+			if (fieldConfig?.isRawData && typeof value === "string") {
+				// 巨大データなので切り詰める
+				promptArgs[key] = truncateForPrompt(value, 100); // 100文字程度に制限
+			} else {
+				promptArgs[key] = value;
+			}
+		}
+
+		this.recordToolExecution(promptArgs);
 
 		// --- [Execution] ---
 		try {
