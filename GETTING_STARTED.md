@@ -151,9 +151,7 @@ WSL に Docker をインストールした直後は、
 
 ### 1.5 ネットワークについて（LM Studio との疎通）
 
-最終的には
-**Windows → WSL → Docker コンテナ**
-の経路で LLM API に接続できる必要があります。
+最終的には **Windows → WSL → Docker コンテナ** の経路で LLM API に接続できる必要があります。
 
 まずは切り分けとして、**WSL2 内部から Windows 側 LLM API への疎通**を確認します。
 
