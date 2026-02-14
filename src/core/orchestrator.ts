@@ -268,8 +268,14 @@ Respond with ONLY the JSON object.
 			return;
 		}
 
+		// LLMが生成した引数の正規化
+		const normalizedArgs = normalizeArgs(
+			args as Record<string, unknown>,
+			Object.keys(tool.inputSchema),
+		);
+		const finalArgs: Record<string, unknown> = { ...normalizedArgs };
+
 		// --- [STEP 3: Raw Data Retrieval] ---
-		const finalArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
 
 		if (rawDataFieldName) {
 			const fieldInfo = tool.inputSchema[rawDataFieldName as keyof unknown];
@@ -328,3 +334,56 @@ If this is code, provide the full source code.
 		}
 	},
 };
+
+/**
+ * LLMが生成した引数のキー名を、スキーマで定義された正解のキー名に正規化する
+ * 対応：キャメルケース、スネークケース、単語の順序逆転、大文字小文字の違い
+ */
+function normalizeArgs(
+	rawArgs: Record<string, unknown>,
+	schemaKeys: string[],
+): Record<string, unknown> {
+	const finalArgs: Record<string, unknown> = {};
+
+	// 比較用：記号を消して小文字化
+	const basic = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+	// 比較用：単語を分解してソート（順序逆転対策）
+	const sorted = (s: string) => {
+		return s
+			.replace(/([A-Z])/g, "_$1") // キャメルケースをスネーク化
+			.toLowerCase()
+			.split(/[^a-z0-9]/) // 記号で分割
+			.filter(Boolean)
+			.sort()
+			.join("");
+	};
+
+	for (const masterKey of schemaKeys) {
+		// 1. 完全一致
+		if (masterKey in rawArgs) {
+			finalArgs[masterKey] = rawArgs[masterKey];
+			continue;
+		}
+
+		const masterBasic = basic(masterKey);
+		const masterSorted = sorted(masterKey);
+
+		// 2. 候補を探す
+		const foundKey = Object.keys(rawArgs).find((rawKey) => {
+			const rBasic = basic(rawKey);
+			if (rBasic === masterBasic) return true;
+
+			const rSorted = sorted(rawKey);
+			if (rSorted === masterSorted) return true;
+
+			return false;
+		});
+
+		if (foundKey) {
+			finalArgs[masterKey] = rawArgs[foundKey];
+		}
+	}
+
+	return finalArgs;
+}
