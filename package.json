@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "clean": "rm -rf src/workspace",
+    "clean": "rm -rf workspace",
     "start": "tsx src/workflow/index.ts",
     "scaffold": "tsx src/workflow/agents/bulk-scaffolder.ts",
     "decompose": "tsx src/workflow/agents/task-decomposer.ts",
