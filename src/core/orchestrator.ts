@@ -59,11 +59,12 @@ export const orchestrator = {
 	},
 
 	/**
-	 * 外部（Tool結果）と内部（制御状態）の両方を統合した観測テキストを生成する
+	 * 内部（制御状態）と外部（Tool結果）を時系列順に統合した観測テキストを生成する
 	 */
 	getCombinedObservation(): string {
-		const parts = ["### External Observation (Last Tool Result)", this.lastToolResult];
+		const parts: string[] = [];
 
+		// 1. まず「自分が何をしようとしたか（思考と引数）」を出す
 		if (this.lastControlSnapshot) {
 			const { chosenTool, rationale } = this.lastControlSnapshot;
 			const params = this.lastToolParameters;
@@ -72,13 +73,22 @@ export const orchestrator = {
 				? `Previous Action: "${chosenTool}"\nRationale: "${rationale}"`
 				: "In the previous step, no action was taken.";
 
-			// 実際に使われた引数を独立して表示
 			if (params && Object.keys(params).length > 0) {
 				contextText += `\nFinal Parameters: ${JSON.stringify(params)}`;
 			}
 
-			parts.push("", "### Internal Observation (Control Context)", contextText.trim());
+			parts.push("### Internal Observation (Control Context)", contextText.trim(), "");
 		}
+
+		// 2. そのアクションに対する「結果」を最後に出す
+		parts.push("### External Observation (Last Tool Result)");
+		// lastToolResultがオブジェクトの場合は文字列化するなど、型に合わせて調整
+		const resultText =
+			typeof this.lastToolResult === "object"
+				? JSON.stringify(this.lastToolResult, null, 2)
+				: String(this.lastToolResult);
+
+		parts.push(resultText);
 
 		return parts.join("\n");
 	},
