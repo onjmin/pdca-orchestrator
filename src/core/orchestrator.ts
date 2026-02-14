@@ -232,27 +232,26 @@ Tool: (The exact tool name from the list above)
 	 * 2. 選ばれたツールを実行する
 	 */
 	async dispatch(tool: GenericTool, task: Task): Promise<ToolResponse<unknown> | undefined> {
-		let finalArgs: Record<string, unknown>;
+		let argsToUse: Record<string, unknown>;
 
 		// 1. 引数の確定 (STEP 2)
 		if (_predefinedArgs) {
-			// selectNextToolで既に連想配列（JSON）を検知済みの場合はそれを使用
-			finalArgs = { ..._predefinedArgs };
-			_predefinedArgs = null; // 消費したらクリア
+			argsToUse = { ..._predefinedArgs };
+			_predefinedArgs = null;
 		} else {
-			const args = await this.generateArguments(tool, task);
-			if (!args) return; // 内部で lastToolResult をセット済み
-			finalArgs = args;
+			const generated = await this.generateArguments(tool, task);
+			if (!generated) return;
+			argsToUse = generated;
 		}
 
 		// 2. Raw Dataの補完 (STEP 3)
-		const updatedArgs = await this.retrieveRawData(tool, task, finalArgs);
-		if (!updatedArgs) return; // 内部で lastToolResult をセット済み
+		const finalArgs = await this.retrieveRawData(tool, task, argsToUse);
+		if (!finalArgs) return;
 
 		// --- [Execution] ---
 		try {
 			console.log(`[Exec] Running ${tool.name}...`);
-			const result = await tool.handler(updatedArgs);
+			const result = await tool.handler(finalArgs);
 			this.lastToolResult = result;
 			return result;
 		} catch (e: unknown) {
