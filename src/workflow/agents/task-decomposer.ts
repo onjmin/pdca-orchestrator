@@ -64,12 +64,7 @@ const mutatingTools = new Set<AllTool>([
  * 観察系Tools (Observation Tools)
  * 読み取り、検索、解析など
  */
-const observationTools = new Set<AllTool>([
-	fileGrepTool,
-	fileListTreeTool,
-	fileReadLinesTool,
-	webFetchTool,
-]);
+const observationTools = new Set<AllTool>([fileGrepTool, fileListTreeTool, fileReadLinesTool]);
 const observationRegistry = new Map([...observationTools].map((e) => [e.name, e]));
 
 export async function run() {
