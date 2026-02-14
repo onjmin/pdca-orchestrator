@@ -270,22 +270,12 @@ Tool: (The exact tool name from the list above)
 	async generateArguments(tool: GenericTool, task: Task): Promise<Record<string, unknown> | null> {
 		const observationText = this.getCombinedObservation();
 
-		// --- [STEP 2: Argument Generation] ---
-
-		let rawDataFieldName = "";
-		const inputSchemaOmitted = (Object.entries(tool.inputSchema) as [string, ToolField][]).reduce(
+		// プロンプト用のスキーマから isRawData フィールドを除外する
+		const inputSchemaOmitted = Object.entries(tool.inputSchema).reduce(
 			(acc, [key, field]) => {
-				if (field.isRawData) {
-					if (rawDataFieldName) {
-						console.warn(
-							`[Orchestrator] Warning: Multiple isRawData fields found in "${tool.name}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
-						);
-					} else {
-						rawDataFieldName = key;
-					}
-					return acc;
+				if (!(field as ToolField).isRawData) {
+					acc[key] = field;
 				}
-				acc[key] = field;
 				return acc;
 			},
 			{} as Record<string, ToolField>,
@@ -332,29 +322,34 @@ Respond with ONLY the JSON object.
 
 	/**
 	 * [STEP 3] 特大データ（Raw Data）の取得とマージ
+	 * すべての isRawData フィールドを順次取得し、引数にマージする
 	 */
 	async retrieveRawData(
 		tool: GenericTool,
 		task: Task,
 		args: Record<string, unknown>,
 	): Promise<Record<string, unknown> | null> {
-		const rawDataField = Object.entries(tool.inputSchema).find(
+		// すべての isRawData フィールドを抽出
+		const rawDataFields = Object.entries(tool.inputSchema).filter(
 			([_, f]) => (f as ToolField).isRawData,
 		);
-		if (!rawDataField) return args;
 
-		const [fieldName, fieldInfo] = rawDataField;
-		// すでに引数に含まれている場合はスキップ
-		if (args[fieldName]) return args;
+		// Raw Dataフィールドがなければそのまま返す
+		if (rawDataFields.length === 0) return args;
 
 		const observationText = this.getCombinedObservation();
+		const currentArgs = { ...args };
 
-		const rawPrompt = `
+		for (const [fieldName, fieldInfo] of rawDataFields) {
+			// すでに引数に含まれている（selectNextToolで検知済み等）場合はスキップ
+			if (currentArgs[fieldName]) continue;
+
+			const rawPrompt = `
 ### Context
 Task: ${task.title}
 Executing Tool: ${tool.name}
 Target Field: "${fieldName}" (${(fieldInfo as ToolField).description})
-Other Arguments: ${JSON.stringify(args)}
+Other Arguments: ${JSON.stringify(currentArgs)}
 
 ### Observation (Previous Results & Your Internal Context)
 ${observationText}
@@ -370,20 +365,24 @@ If this is code, provide the full source code.
 - Output ONLY the raw content.
 `.trim();
 
-		await savePromptLog("3-dispatch-raw-input", rawPrompt);
-		const rawContent = await llm.complete(rawPrompt);
-		await savePromptLog("3-dispatch-raw-output", rawContent);
+			await savePromptLog(`3-dispatch-raw-${fieldName}-input`, rawPrompt);
+			const rawContent = await llm.complete(rawPrompt);
+			await savePromptLog(`3-dispatch-raw-${fieldName}-output`, rawContent);
 
-		if (!rawContent) {
-			this.lastToolResult = {
-				success: false,
-				summary: `Failed to retrieve the raw content for field: ${fieldName}`,
-				error: "RAW_CONTENT_RETRIEVAL_FAILED",
-			};
-			return null;
+			if (!rawContent) {
+				this.lastToolResult = {
+					success: false,
+					summary: `Failed to retrieve the raw content for field: ${fieldName}`,
+					error: "RAW_CONTENT_RETRIEVAL_FAILED",
+				};
+				return null;
+			}
+
+			// 取得したコンテンツを次のループ（別のRawDataフィールド）のコンテキストにも使えるようマージ
+			currentArgs[fieldName] = rawContent;
 		}
 
-		return { ...args, [fieldName]: rawContent };
+		return currentArgs;
 	},
 };
 
