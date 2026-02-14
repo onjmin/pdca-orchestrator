@@ -15,11 +15,9 @@ type ControlSnapshot = {
 	rationale: string;
 };
 
-// 謎フォーマット検知時に事前抽出した引数を保持する
-let _predefinedArgs: Record<string, unknown> | null = null;
-
 export const orchestrator = {
 	_oneTimeInstruction: null as string | null,
+	_predefinedArgs: null as Record<string, unknown> | null,
 
 	/**
 	 * 1ターン限定の特別指示をセットする
@@ -217,7 +215,7 @@ Tool: (The exact tool name from the list above)
 				const toolDef = registry.get(found);
 				if (toolDef) {
 					// LLM生成時のキー名の表記ゆれ（ケース違いや単語順序）を吸収し、スキーマ定義通りのキー名に正規化する。
-					_predefinedArgs = normalizeArgs(
+					this._predefinedArgs = normalizeArgs(
 						args as Record<string, unknown>,
 						Object.keys(toolDef.inputSchema),
 					);
@@ -235,9 +233,9 @@ Tool: (The exact tool name from the list above)
 		let argsToUse: Record<string, unknown>;
 
 		// 1. 引数の確定 (STEP 2)
-		if (_predefinedArgs) {
-			argsToUse = { ..._predefinedArgs };
-			_predefinedArgs = null;
+		if (this._predefinedArgs) {
+			argsToUse = { ...this._predefinedArgs };
+			this._predefinedArgs = null;
 		} else {
 			const generated = await this.generateArguments(tool, task);
 			if (!generated) return;
