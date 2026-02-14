@@ -12,7 +12,7 @@ export const FileInsertAtArgsSchema = z.object({
 
 export type FileInsertAtArgs = z.infer<typeof FileInsertAtArgsSchema>;
 
-export const fileInsertAtEffect = createTool<FileInsertAtArgs, { path: string }>({
+export const fileInsertAtTool = createTool<FileInsertAtArgs, { path: string }>({
 	name: "file.insert_at",
 	description: "Insert text at a specific line number without deleting existing content.",
 	inputSchema: {

@@ -1,8 +1,8 @@
 import "dotenv/config";
-import { webSearchEffect } from "../../tools/web/search";
+import { webSearchTool } from "../../tools/web/search";
 
 async function testWebSearch() {
-	console.log("--- Tavily Search Effect Test Start ---");
+	console.log("--- Tavily Search Tool Test Start ---");
 
 	// 1. APIキーの存在確認
 	if (!process.env.TAVILY_API_KEY) {
@@ -14,7 +14,7 @@ async function testWebSearch() {
 	const query = "Latest stable version of Hono framework and its features";
 	console.log(`[Test] Searching for: "${query}"...`);
 
-	const res = await webSearchEffect.handler({
+	const res = await webSearchTool.handler({
 		query: query,
 	});
 

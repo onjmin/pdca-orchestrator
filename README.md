@@ -20,11 +20,11 @@ AIは一回につき、一つの道具（ツール）だけを使います。こ
 while (taskStack.isNotEmpty()) {
   // 1. 次に使う「道具」を選ぶ
   // （「まずはファイルを読もう」「次は書き換えよう」など）
-  const effectName = await orchestrator.selectNextEffect();
+  const toolName = await orchestrator.selectNextTool();
 
   // 2. その道具を実際に動かす
   // （ファイルに書き込んだり、ネットで調べたりする）
-  await orchestrator.dispatch(effectName);
+  await orchestrator.dispatch(toolName);
 
   // 3. うまくいったか見て、次のループへ
 }

@@ -19,7 +19,7 @@ export interface FileGrepData {
  * EFFECT: file.grep
  * システムの grep コマンドを使用してパターンを高速検索します。
  */
-export const fileGrepEffect = createTool<FileGrepArgs, FileGrepData>({
+export const fileGrepTool = createTool<FileGrepArgs, FileGrepData>({
 	name: "file.grep",
 	description:
 		"Search for patterns with context. Results include line numbers and surrounding lines.",

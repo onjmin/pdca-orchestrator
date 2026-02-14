@@ -5,7 +5,7 @@ import { emitDiscordInternalLog } from "./utils";
 
 export const PlanArgsSchema = z.object({
 	strategy: z.string().describe("The step-by-step strategy to achieve the current task's DoD."),
-	reasoning: z.string().describe("Logical reasoning for why this strategy is effective."),
+	reasoning: z.string().describe("Logical reasoning for why this strategy is toolive."),
 });
 
 export type PlanArgs = z.infer<typeof PlanArgsSchema>;
@@ -14,7 +14,7 @@ export type PlanArgs = z.infer<typeof PlanArgsSchema>;
  * EFFECT: task.plan
  * 戦略を策定し、内容を Discord に報告します。
  */
-export const taskPlanEffect = createTool<PlanArgs, void>({
+export const taskPlanTool = createTool<PlanArgs, void>({
 	name: "task.plan",
 	description: "Formulate a strategy to achieve the current task's DoD.",
 	inputSchema: {
@@ -24,7 +24,7 @@ export const taskPlanEffect = createTool<PlanArgs, void>({
 		},
 		reasoning: {
 			type: "string",
-			description: "Logical reasoning for why this strategy is effective.",
+			description: "Logical reasoning for why this strategy is toolive.",
 		},
 	},
 

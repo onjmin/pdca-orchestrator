@@ -18,7 +18,7 @@ export interface FileListTreeData {
  * EFFECT: file.list_tree
  * tree コマンドを使用してディレクトリ構造を視覚化します。
  */
-export const fileListTreeEffect = createTool<FileListTreeArgs, FileListTreeData>({
+export const fileListTreeTool = createTool<FileListTreeArgs, FileListTreeData>({
 	name: "file.list_tree",
 	description: "Get the visual tree structure of the workspace using the 'tree' command.",
 	inputSchema: {

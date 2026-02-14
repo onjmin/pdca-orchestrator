@@ -16,10 +16,10 @@ export type FileCreateArgs = z.infer<typeof FileCreateArgsSchema>;
  * EFFECT: file.create
  * ファイルの新規作成を行います。既存ファイルの上書きは禁止します。
  */
-export const fileCreateEffect = createTool<FileCreateArgs, void>({
+export const fileCreateTool = createTool<FileCreateArgs, void>({
 	name: "file.create",
 	description:
-		"Create a NEW file with the specified content. This effect will FAIL if the file already exists. To modify existing files, use 'file.patch' instead. Parent directories are created automatically.",
+		"Create a NEW file with the specified content. This tool will FAIL if the file already exists. To modify existing files, use 'file.patch' instead. Parent directories are created automatically.",
 	inputSchema: {
 		path: {
 			type: "string",

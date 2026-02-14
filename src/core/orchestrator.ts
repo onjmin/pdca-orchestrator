@@ -5,13 +5,13 @@ import { type Task, taskStack } from "./stack-manager";
 import { truncateForPrompt } from "./utils";
 
 // 外部から受け入れるための汎用型（anyの使用をここだけに限定する）
-// 1. 各Effectの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
+// 1. 各Toolの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
 // 2. LLMが生成した動的なJSONを型安全の境界を越えて注入するため、意図的に型を消去している。
 // biome-ignore lint/suspicious/noExplicitAny: カタログ形式での一括管理と実行時の動的注入を両立するための意図的な型消去
-type GenericEffect = ToolDefinition<any, any>;
+type GenericTool = ToolDefinition<any, any>;
 
 type ControlSnapshot = {
-	chosenEffect: string | null;
+	chosenTool: string | null;
 	rationale: string;
 };
 
@@ -37,9 +37,9 @@ export const orchestrator = {
 	/**
 	 * 制御判断の状態をスナップショットとして記録する
 	 */
-	recordControlSnapshot(params: { chosenEffect: string | null; rationale: string }) {
+	recordControlSnapshot(params: { chosenTool: string | null; rationale: string }) {
 		const snapshot: ControlSnapshot = {
-			chosenEffect: params.chosenEffect,
+			chosenTool: params.chosenTool,
 			rationale: params.rationale,
 		};
 
@@ -48,10 +48,10 @@ export const orchestrator = {
 	},
 
 	/**
-	 * 外部（Effect結果）と内部（制御状態）の両方を統合した観測テキストを生成する
+	 * 外部（Tool結果）と内部（制御状態）の両方を統合した観測テキストを生成する
 	 */
 	getCombinedObservation(): string {
-		const parts = ["### External Observation (Last Effect Result)", this.lastEffectResult];
+		const parts = ["### External Observation (Last Tool Result)", this.lastToolResult];
 
 		const { lastControlSnapshot } = this;
 
@@ -59,9 +59,9 @@ export const orchestrator = {
 			parts.push(
 				"",
 				"### Internal Observation (Control Context)",
-				lastControlSnapshot?.chosenEffect
+				lastControlSnapshot?.chosenTool
 					? `
-Your previous action: "${lastControlSnapshot.chosenEffect}"
+Your previous action: "${lastControlSnapshot.chosenTool}"
 Your previous rationale: "${lastControlSnapshot.rationale}"
 `.trim()
 					: "In the previous step, no action was taken.",
@@ -71,20 +71,20 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 		return parts.join("\n");
 	},
 
-	// 最新のEffect execution結果を保持するバッファ
+	// 最新のTool execution結果を保持するバッファ
 	_lastResult: null as ToolResponse<unknown> | null,
 
 	/**
 	 * 最新の実行結果をセットする (setter)
 	 */
-	set lastEffectResult(result: ToolResponse<unknown> | null) {
+	set lastToolResult(result: ToolResponse<unknown> | null) {
 		this._lastResult = result;
 	},
 
 	/**
 	 * プロンプト用に成形された観測結果（文字列）を取得する (getter)
 	 */
-	get lastEffectResult(): string {
+	get lastToolResult(): string {
 		if (!this._lastResult) return "No previous action.";
 
 		return truncateForPrompt(JSON.stringify(this._lastResult, null, 2), 2000);
@@ -93,7 +93,7 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 	/**
 	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
 	 */
-	async selectNextEffect(registry: Map<string, GenericEffect>): Promise<GenericEffect | null> {
+	async selectNextTool(registry: Map<string, GenericTool>): Promise<GenericTool | null> {
 		const stack = taskStack.getStack();
 		if (stack.length === 0) return null;
 
@@ -140,7 +140,7 @@ ${this.oneTimeInstruction}
 
 Respond in the following format:
 Rationale: (Your brief reasoning for this choice)
-Effect: (The exact effect name from the list above)
+Tool: (The exact tool name from the list above)
         `.trim();
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
@@ -150,9 +150,9 @@ Effect: (The exact effect name from the list above)
 		await savePromptLog("1-select-next-output", rawContent);
 
 		if (!rawContent) {
-			this.lastEffectResult = {
+			this.lastToolResult = {
 				success: false,
-				summary: "Decision failed: LLM did not return any effect name.",
+				summary: "Decision failed: LLM did not return any tool name.",
 				error: "LLM_RESPONSE_EMPTY",
 			};
 			return null;
@@ -162,18 +162,18 @@ Effect: (The exact effect name from the list above)
 		const rationaleMatch = rawContent.match(/Rationale:\s*(.*)/i);
 		const rationale = rationaleMatch ? rationaleMatch[1].trim() : "No reasoning provided.";
 
-		// Effect: の行から、registryにある名前を正確に探す
-		const effectNames = Array.from(registry.keys());
+		// Tool: の行から、registryにある名前を正確に探す
+		const toolNames = Array.from(registry.keys());
 
-		// 1. まず "Effect: 名前" の形式で探す（大文字小文字無視、ハイフン等も許容）
-		const effectLineMatch = rawContent.match(/Effect:\s*([a-zA-Z0-9_-]+)/i);
-		let found = effectLineMatch ? effectLineMatch[1].trim() : null;
+		// 1. まず "Tool: 名前" の形式で探す（大文字小文字無視、ハイフン等も許容）
+		const toolLineMatch = rawContent.match(/Tool:\s*([a-zA-Z0-9_-]+)/i);
+		let found = toolLineMatch ? toolLineMatch[1].trim() : null;
 
 		// 2. もし見つからなかった、または registry にない名前だった場合、
 		// 全文から registry にある名前を完全一致で探す
 		if (!found || !registry.has(found)) {
 			found =
-				effectNames.find((name) => {
+				toolNames.find((name) => {
 					// 単語境界 (\b) を使って、他の単語の一部として含まれている場合は無視する
 					const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 					return new RegExp(`\\b${escapedName}\\b`, "i").test(rawContent);
@@ -181,23 +181,23 @@ Effect: (The exact effect name from the list above)
 		}
 
 		if (!found || !registry.has(found)) {
-			this.lastEffectResult = {
+			this.lastToolResult = {
 				success: false,
-				summary: `Decision failed: Selected effect "${found || "unknown"}" is not available.`,
-				error: `AVAILABLE_TOOLS: ${effectNames.join(", ")}`,
+				summary: `Decision failed: Selected tool "${found || "unknown"}" is not available.`,
+				error: `AVAILABLE_TOOLS: ${toolNames.join(", ")}`,
 			};
 			return null;
 		}
 
 		// Snapshot の記録（引数を整理した最新の型に合わせる）
 		this.recordControlSnapshot({
-			chosenEffect: found,
+			chosenTool: found,
 			rationale: rationale,
 		});
 
 		if (isDebugMode) {
 			console.log({
-				chosenEffect: found,
+				chosenTool: found,
 				rationale: rationale,
 			});
 		}
@@ -208,18 +208,18 @@ Effect: (The exact effect name from the list above)
 	/**
 	 * 2. 選ばれたエフェクトを実行する
 	 */
-	async dispatch(effect: GenericEffect, task: Task): Promise<ToolResponse<unknown> | undefined> {
+	async dispatch(tool: GenericTool, task: Task): Promise<ToolResponse<unknown> | undefined> {
 		const observationText = this.getCombinedObservation();
 
 		// --- [STEP 2: Argument Generation] ---
 
 		let rawDataFieldName = "";
-		const inputSchemaOmitted = (Object.entries(effect.inputSchema) as [string, ToolField][]).reduce(
+		const inputSchemaOmitted = (Object.entries(tool.inputSchema) as [string, ToolField][]).reduce(
 			(acc, [key, field]) => {
 				if (field.isRawData) {
 					if (rawDataFieldName) {
 						console.warn(
-							`[Orchestrator] Warning: Multiple isRawData fields found in "${effect.name}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
+							`[Orchestrator] Warning: Multiple isRawData fields found in "${tool.name}". Only "${rawDataFieldName}" will be used. Field "${key}" will be ignored.`,
 						);
 					} else {
 						rawDataFieldName = key;
@@ -233,8 +233,8 @@ Effect: (The exact effect name from the list above)
 		);
 
 		const argPrompt = `
-You are using the tool: "${effect.name}"
-Description: ${effect.description}
+You are using the tool: "${tool.name}"
+Description: ${tool.description}
 
 ### Task Context
 Task: ${task.title}
@@ -260,7 +260,7 @@ Respond with ONLY the JSON object.
 		const { data: args, error: jsonError } = await llm.completeAsJson(argPrompt);
 		await savePromptLog("2-dispatch-args-output", JSON.stringify(args));
 		if (jsonError || !args || typeof args !== "object") {
-			this.lastEffectResult = {
+			this.lastToolResult = {
 				success: false,
 				summary: "JSON argument generation failed.",
 				error: jsonError || "INVALID_JSON_STRUCTURE",
@@ -272,11 +272,11 @@ Respond with ONLY the JSON object.
 		const finalArgs: Record<string, unknown> = { ...(args as Record<string, unknown>) };
 
 		if (rawDataFieldName) {
-			const fieldInfo = effect.inputSchema[rawDataFieldName as keyof unknown];
+			const fieldInfo = tool.inputSchema[rawDataFieldName as keyof unknown];
 			const rawPrompt = `
 ### Context
 Task: ${task.title}
-Executing Tool: ${effect.name}
+Executing Tool: ${tool.name}
 Target Field: "${rawDataFieldName}" (${(fieldInfo as ToolField).description})
 Other Arguments: ${JSON.stringify(args)}
 
@@ -299,7 +299,7 @@ If this is code, provide the full source code.
 			await savePromptLog("3-dispatch-raw-output", rawContent);
 
 			if (!rawContent) {
-				this.lastEffectResult = {
+				this.lastToolResult = {
 					success: false,
 					summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
 					error: "RAW_CONTENT_RETRIEVAL_FAILED",
@@ -312,18 +312,18 @@ If this is code, provide the full source code.
 
 		// --- [Execution] ---
 		try {
-			console.log(`[Exec] Running ${effect.name}...`);
-			const result = await effect.handler(finalArgs);
-			this.lastEffectResult = result;
+			console.log(`[Exec] Running ${tool.name}...`);
+			const result = await tool.handler(finalArgs);
+			this.lastToolResult = result;
 			return result;
 		} catch (e: unknown) {
 			const errorMessage = e instanceof Error ? e.message : String(e);
 			const failResult: ToolResponse<never> = {
 				success: false,
-				summary: `Runtime error in ${effect.name}`,
+				summary: `Runtime error in ${tool.name}`,
 				error: errorMessage,
 			};
-			this.lastEffectResult = failResult;
+			this.lastToolResult = failResult;
 			return failResult;
 		}
 	},

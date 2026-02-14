@@ -12,7 +12,7 @@ export const TroubleshootArgsSchema = z.object({
  * EFFECT: ai.troubleshoot
  * 期待した結果と現実の差異を特定し、詰まりを解消するための直接的な手順を生成します。
  */
-export const aiTroubleshootEffect = createTool<z.infer<typeof TroubleshootArgsSchema>, string>({
+export const aiTroubleshootTool = createTool<z.infer<typeof TroubleshootArgsSchema>, string>({
 	name: "ai.troubleshoot",
 	description:
 		"Identify why an action failed and get the exact steps to fix the issue and move forward.",

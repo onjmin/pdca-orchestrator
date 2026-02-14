@@ -4,74 +4,74 @@ import { resolve } from "node:path";
 import { initDebugLog, isDebugMode, setLogTurn } from "../../core/debug-log";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
-import { aiTroubleshootEffect } from "../../tools/ai/troubleshoot";
-import { fileCreateEffect } from "../../tools/file/create";
-import { fileGrepEffect } from "../../tools/file/grep";
-import { fileInsertAtEffect } from "../../tools/file/insert_at";
-import { fileListTreeEffect } from "../../tools/file/list_tree";
-import { filePatchEffect } from "../../tools/file/patch";
-import { fileReadLinesEffect } from "../../tools/file/read_lines";
-import { gitCheckoutEffect } from "../../tools/git/checkout";
-import { gitCloneEffect } from "../../tools/git/clone";
-import { githubCreatePullRequestEffect } from "../../tools/github/create-pull-request";
-import { shellExecEffect } from "../../tools/shell/exec";
-import { taskCheckEffect } from "../../tools/task/check";
-import { taskPlanEffect } from "../../tools/task/plan";
-import { taskSplitEffect } from "../../tools/task/split";
-import { taskWaitEffect } from "../../tools/task/wait";
-import { webFetchEffect } from "../../tools/web/fetch";
-import { webSearchEffect } from "../../tools/web/search";
-import { webWikipediaEffect } from "../../tools/web/wikipedia";
+import { aiTroubleshootTool } from "../../tools/ai/troubleshoot";
+import { fileCreateTool } from "../../tools/file/create";
+import { fileGrepTool } from "../../tools/file/grep";
+import { fileInsertAtTool } from "../../tools/file/insert_at";
+import { fileListTreeTool } from "../../tools/file/list_tree";
+import { filePatchTool } from "../../tools/file/patch";
+import { fileReadLinesTool } from "../../tools/file/read_lines";
+import { gitCheckoutTool } from "../../tools/git/checkout";
+import { gitCloneTool } from "../../tools/git/clone";
+import { githubCreatePullRequestTool } from "../../tools/github/create-pull-request";
+import { shellExecTool } from "../../tools/shell/exec";
+import { taskCheckTool } from "../../tools/task/check";
+import { taskPlanTool } from "../../tools/task/plan";
+import { taskSplitTool } from "../../tools/task/split";
+import { taskWaitTool } from "../../tools/task/wait";
+import { webFetchTool } from "../../tools/web/fetch";
+import { webSearchTool } from "../../tools/web/search";
+import { webWikipediaTool } from "../../tools/web/wikipedia";
 
 // 利用可能なエフェクトのカタログ
-const allEffects = [
-	aiTroubleshootEffect,
-	fileCreateEffect,
-	fileGrepEffect,
-	fileInsertAtEffect,
-	fileListTreeEffect,
-	filePatchEffect,
-	fileReadLinesEffect,
-	gitCheckoutEffect,
-	gitCloneEffect,
-	githubCreatePullRequestEffect,
-	shellExecEffect,
-	taskCheckEffect,
-	taskPlanEffect,
-	taskSplitEffect,
-	taskWaitEffect,
-	webFetchEffect,
-	webSearchEffect,
-	webWikipediaEffect,
+const allTools = [
+	aiTroubleshootTool,
+	fileCreateTool,
+	fileGrepTool,
+	fileInsertAtTool,
+	fileListTreeTool,
+	filePatchTool,
+	fileReadLinesTool,
+	gitCheckoutTool,
+	gitCloneTool,
+	githubCreatePullRequestTool,
+	shellExecTool,
+	taskCheckTool,
+	taskPlanTool,
+	taskSplitTool,
+	taskWaitTool,
+	webFetchTool,
+	webSearchTool,
+	webWikipediaTool,
 ];
 
-type AllEffect = (typeof allEffects)[number];
-const allRegistry = new Map(allEffects.map((e) => [e.name, e]));
+type AllTool = (typeof allTools)[number];
+const allRegistry = new Map(allTools.map((e) => [e.name, e]));
 
 /**
- * 変更系Effects (Mutating Effects)
+ * 変更系Tools (Mutating Tools)
  * ファイルの書き換え、外部環境の操作、プロセス待機など
  */
-const mutatingEffects = new Set<AllEffect>([
-	fileCreateEffect,
-	fileInsertAtEffect,
-	filePatchEffect,
-	gitCloneEffect,
-	gitCheckoutEffect,
-	taskWaitEffect, // 状態が変化する可能性があるためこちらに分類
+const mutatingTools = new Set<AllTool>([
+	fileCreateTool,
+	fileInsertAtTool,
+	filePatchTool,
+	gitCloneTool,
+	gitCheckoutTool,
+	taskWaitTool, // 状態が変化する可能性があるためこちらに分類
 ]);
 
 /**
- * 観察系Effects (Observation Effects)
+ * 観察系Tools (Observation Tools)
  * 読み取り、検索、解析など
  */
-const observationEffects = new Set<AllEffect>([
-	fileGrepEffect,
-	fileListTreeEffect,
-	fileReadLinesEffect,
-	webFetchEffect,
+const observationTools = new Set<AllTool>([
+	fileGrepTool,
+	fileListTreeTool,
+	fileReadLinesTool,
+	webFetchTool,
 ]);
-const observationRegistry = new Map([...observationEffects].map((e) => [e.name, e]));
+const observationRegistry = new Map([...observationTools].map((e) => [e.name, e]));
 
 export async function run() {
 	console.log("--- 小人が起きました ---");
@@ -108,8 +108,8 @@ export async function run() {
 
 	let observationsAfterMutating = 0;
 
-	let nextEffect: AllEffect | null = null;
-	let lastSelectedEffect: AllEffect | null = null;
+	let nextTool: AllTool | null = null;
+	let lastSelectedTool: AllTool | null = null;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -126,12 +126,12 @@ export async function run() {
 
 			currentTask.turns++;
 
-			nextEffect = await (async () => {
+			nextTool = await (async () => {
 				// const isInitialParentTask = taskStack.currentTask === initialTask;
 
 				// 強制介入: 現状把握（全タスク共通の1ターン目）
 				if (currentTask.turns === 1) {
-					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+					return (await orchestrator.selectNextTool(observationRegistry)) ?? null;
 				}
 
 				// 強制介入: 計画の強制（2ターン目）
@@ -139,7 +139,7 @@ export async function run() {
 					orchestrator.oneTimeInstruction =
 						"Analyze the goal and formulate a clear strategy. Use 'task.plan' to document your step-by-step approach before taking action.";
 					// task.planを確実に選ばせるなら、plan用のRegistryを渡すのもアリ
-					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+					return (await orchestrator.selectNextTool(allRegistry)) ?? null;
 				}
 
 				// 強制介入: 分割の検討（3ターン目）
@@ -150,46 +150,46 @@ Review your strategy.
 1. If the current task still requires multiple distinct steps, you MUST use 'task.split' to break it down into unambiguous, single-purpose sub-tasks.
 2. If the current task is already simple enough to be completed with a single action (e.g., just creating one file), you may skip splitting and proceed to execute.
     `.trim();
-					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+					return (await orchestrator.selectNextTool(allRegistry)) ?? null;
 				}
 
 				// 強制介入: DoDチェック失敗時、タスク分割を検討させる
-				if (currentTask.turns !== 1 && lastSelectedEffect === taskCheckEffect) {
+				if (currentTask.turns !== 1 && lastSelectedTool === taskCheckTool) {
 					orchestrator.oneTimeInstruction =
 						"Evaluate if the current DoD is simple enough to be completed in a single step. If it feels complex or multi-faceted, use 'task.split' to break it down into smaller, manageable sub-tasks.";
-					return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+					return (await orchestrator.selectNextTool(allRegistry)) ?? null;
 				}
 
-				// 強制介入: 前ターンが変更系Effectsであれば、観察系Effectsを選出
-				if (lastSelectedEffect && mutatingEffects.has(lastSelectedEffect)) {
+				// 強制介入: 前ターンが変更系Toolsであれば、観察系Toolsを選出
+				if (lastSelectedTool && mutatingTools.has(lastSelectedTool)) {
 					observationsAfterMutating++;
-					orchestrator.oneTimeInstruction = `Verify that the changes made by '${lastSelectedEffect.name}' were applied correctly and that the results align with the expected state.`;
-					return (await orchestrator.selectNextEffect(observationRegistry)) ?? null;
+					orchestrator.oneTimeInstruction = `Verify that the changes made by '${lastSelectedTool.name}' were applied correctly and that the results align with the expected state.`;
+					return (await orchestrator.selectNextTool(observationRegistry)) ?? null;
 				}
 
 				// 強制介入: 上のルールが規定回数以上発動していれば、DoDチェック
 				if (observationsAfterMutating > 3) {
 					observationsAfterMutating = 0;
 					orchestrator.recordControlSnapshot({
-						chosenEffect: taskCheckEffect.name,
+						chosenTool: taskCheckTool.name,
 						rationale:
 							"Sufficient observations have been conducted following modifications. Transitioning to final task verification (DoD).",
 					});
-					return taskCheckEffect;
+					return taskCheckTool;
 				}
 
 				// 通常
-				return (await orchestrator.selectNextEffect(allRegistry)) ?? null;
+				return (await orchestrator.selectNextTool(allRegistry)) ?? null;
 			})();
 
-			if (!nextEffect) {
+			if (!nextTool) {
 				// 不正なエフェクトはlsに丸め込む
-				nextEffect = fileListTreeEffect;
+				nextTool = fileListTreeTool;
 			}
 
-			// --- effect 実行 ---
-			await orchestrator.dispatch(nextEffect, currentTask);
-			lastSelectedEffect = nextEffect;
+			// --- tool 実行 ---
+			await orchestrator.dispatch(nextTool, currentTask);
+			lastSelectedTool = nextTool;
 
 			if (totalTurns >= MAX_TURNS) {
 				throw new Error("Max turns exceeded — aborting to prevent infinite loop.");

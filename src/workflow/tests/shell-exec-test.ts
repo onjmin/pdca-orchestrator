@@ -1,12 +1,12 @@
 import "dotenv/config";
-import { shellExecEffect } from "../../tools/shell/exec";
+import { shellExecTool } from "../../tools/shell/exec";
 
 async function testShellExec() {
-	console.log("--- Shell Exec Effect Test Start ---");
+	console.log("--- Shell Exec Tool Test Start ---");
 
 	// テストケース1: 成功するコマンド
 	console.log("\n[Test 1] Executing a successful command (echo)...");
-	const res1 = await shellExecEffect.handler({
+	const res1 = await shellExecTool.handler({
 		command: 'echo "Hello from Shell!"',
 		cwd: ".", // フラット化に伴い、明示的に指定
 		timeout: 60000,
@@ -21,7 +21,7 @@ async function testShellExec() {
 
 	// テストケース2: 失敗するコマンド
 	console.log("\n[Test 2] Executing a failing command (non-existent)...");
-	const res2 = await shellExecEffect.handler({
+	const res2 = await shellExecTool.handler({
 		command: "this-command-does-not-exist-12345",
 		cwd: ".", // 明示的に指定
 		timeout: 60000,
@@ -38,7 +38,7 @@ async function testShellExec() {
 
 	// テストケース3: ディレクトリ指定
 	console.log("\n[Test 3] Checking directory listing...");
-	const res3 = await shellExecEffect.handler({
+	const res3 = await shellExecTool.handler({
 		command: process.platform === "win32" ? "dir" : "ls -F",
 		cwd: ".",
 		timeout: 60000,

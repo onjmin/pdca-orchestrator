@@ -2,10 +2,10 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { llm } from "../../core/llm-client";
-import { fileCreateEffect } from "../../tools/file/create";
-import { fileListTreeEffect } from "../../tools/file/list_tree";
+import { fileCreateTool } from "../../tools/file/create";
+import { fileListTreeTool } from "../../tools/file/list_tree";
 import { getSafePath } from "../../tools/file/utils";
-import { shellExecEffect } from "../../tools/shell/exec";
+import { shellExecTool } from "../../tools/shell/exec";
 
 /**
  * Scaffolder (足場職人)
@@ -87,10 +87,10 @@ command
 			const [, filePath, fileContent, shellCommand] = match;
 			if (filePath) {
 				console.log(`📄 Building: ${filePath.trim()}`);
-				await fileCreateEffect.handler({ path: filePath.trim(), content: fileContent });
+				await fileCreateTool.handler({ path: filePath.trim(), content: fileContent });
 			} else if (shellCommand) {
 				console.log(`💻 Executing: ${shellCommand.trim()}`);
-				await shellExecEffect.handler({
+				await shellExecTool.handler({
 					command: shellCommand.trim(),
 					cwd: baseDir,
 					timeout: 60000,
@@ -101,14 +101,14 @@ command
 
 		// --- 2. 仕上げの npm i & npm test ---
 		console.log("🛠️  依存関係の整合性チェック (npm i)...");
-		await shellExecEffect.handler({ command: "npm i", cwd: baseDir, timeout: 300000 });
+		await shellExecTool.handler({ command: "npm i", cwd: baseDir, timeout: 300000 });
 
 		// --- 3. [PACKAGES] のパースと実行 ---
 		const pkgMatch = /\[PACKAGES\]\n([\s\S]*?)\n\[\/PACKAGES\]/.exec(rawOutput);
 		if (pkgMatch?.[1].trim()) {
 			const packages = pkgMatch[1].trim().replace(/\n/g, " ");
 			console.log(`📦 指定された資材を搬入（npm install）: ${packages}`);
-			await shellExecEffect.handler({
+			await shellExecTool.handler({
 				command: `npm install ${packages}`,
 				cwd: baseDir,
 				timeout: 300000,
@@ -116,7 +116,7 @@ command
 		}
 
 		console.log("🧪 完成検査 (npm test) を開始...");
-		const testResponse = await shellExecEffect.handler({
+		const testResponse = await shellExecTool.handler({
 			command: "npm test",
 			cwd: baseDir,
 			timeout: 60000,
@@ -136,7 +136,7 @@ command
 			break;
 		}
 
-		const treeResponse = await fileListTreeEffect.handler({ path: ".", depth: 3 });
+		const treeResponse = await fileListTreeTool.handler({ path: ".", depth: 3 });
 		const treeOutput = treeResponse.success ? treeResponse.data?.tree : "N/A";
 
 		console.log("エラーを分析し、設計図を引き直します...");

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { fileCreateEffect } from "../../tools/file/create";
+import { fileCreateTool } from "../../tools/file/create";
 
 async function main() {
 	console.log("🚀 Starting file.create test...");
@@ -13,7 +13,7 @@ async function main() {
 	console.log(`📝 Target path: ${testArgs.path}`);
 
 	// handler を直接実行
-	const response = await fileCreateEffect.handler(testArgs);
+	const response = await fileCreateTool.handler(testArgs);
 
 	// 'status' ではなく 'success' プロパティを確認
 	if (response.success) {

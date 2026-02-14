@@ -1,12 +1,12 @@
 import "dotenv/config";
-import { webWikipediaEffect } from "../../tools/web/wikipedia";
+import { webWikipediaTool } from "../../tools/web/wikipedia";
 
 async function testWikipedia() {
-	console.log("--- Wikipedia Effect Test Start ---");
+	console.log("--- Wikipedia Tool Test Start ---");
 
 	// テストケース1: 日本語で検索
 	console.log("\n[Test 1] Searching for 'TypeScript' in Japanese...");
-	const res1 = await webWikipediaEffect.handler({
+	const res1 = await webWikipediaTool.handler({
 		query: "TypeScript",
 	});
 
@@ -23,7 +23,7 @@ async function testWikipedia() {
 
 	// テストケース2: 存在しないトピック
 	console.log("\n[Test 2] Searching for a non-existent topic...");
-	const res2 = await webWikipediaEffect.handler({
+	const res2 = await webWikipediaTool.handler({
 		query: "ThisIsSomeRandomStringThatDoesNotExistOnWikipedia12345",
 	});
 

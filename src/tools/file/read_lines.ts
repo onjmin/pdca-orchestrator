@@ -24,7 +24,7 @@ export interface FileReadLinesData {
  * EFFECT: file.read_lines
  * 特定の行範囲を行番号付きで読み取ります。
  */
-export const fileReadLinesEffect = createTool<FileReadLinesArgs, FileReadLinesData>({
+export const fileReadLinesTool = createTool<FileReadLinesArgs, FileReadLinesData>({
 	name: "file.read_lines",
 	description: "Read specific lines of a file with line numbers to examine code context.",
 	inputSchema: {
@@ -55,10 +55,10 @@ export const fileReadLinesEffect = createTool<FileReadLinesArgs, FileReadLinesDa
 
 			const requestedCount = endLine - startLine + 1;
 			const isTruncated = requestedCount > MAX_READ_LIMIT;
-			const effectiveEndLine = isTruncated ? startLine + MAX_READ_LIMIT - 1 : endLine;
+			const tooliveEndLine = isTruncated ? startLine + MAX_READ_LIMIT - 1 : endLine;
 
 			// cat -n で行番号を付与し、sed で抽出
-			const command = `cat -n "${safePath}" | sed -n '${startLine},${effectiveEndLine}p'`;
+			const command = `cat -n "${safePath}" | sed -n '${startLine},${tooliveEndLine}p'`;
 
 			const stdout = execSync(command, {
 				encoding: "utf8",
@@ -69,8 +69,8 @@ export const fileReadLinesEffect = createTool<FileReadLinesArgs, FileReadLinesDa
 			const lines = stdout.split("\n").filter((line) => line.length > 0);
 
 			const summary = isTruncated
-				? `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}). [Truncated from ${requestedCount} lines]`
-				: `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}).`;
+				? `Read ${lines.length} lines (L${startLine}-L${tooliveEndLine}). [Truncated from ${requestedCount} lines]`
+				: `Read ${lines.length} lines (L${startLine}-L${tooliveEndLine}).`;
 
 			return toolResult.ok(summary, {
 				lines,

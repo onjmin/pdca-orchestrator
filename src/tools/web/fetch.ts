@@ -22,7 +22,7 @@ export interface WebFetchData {
  * EFFECT: web.fetch
  * 指定したURLからコンテンツを取得します。
  */
-export const webFetchEffect = createTool<WebFetchArgs, WebFetchData>({
+export const webFetchTool = createTool<WebFetchArgs, WebFetchData>({
 	name: "web.fetch",
 	description:
 		"Fetch raw content from a URL. Useful for reading documentation or raw source files.",

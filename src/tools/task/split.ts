@@ -17,7 +17,7 @@ export type SplitArgs = z.infer<typeof SplitArgsSchema>;
  * EFFECT: task.split
  * サブタスクをスタックに積みます。
  */
-export const taskSplitEffect = createTool<SplitArgs, void>({
+export const taskSplitTool = createTool<SplitArgs, void>({
 	name: "task.split",
 	description:
 		"Create a sub-task to break down implementation or to create a specific verification task.",

@@ -22,7 +22,7 @@ export interface ShellExecData {
  * EFFECT: shell.exec
  * 任意のシェルコマンドを実行します。
  */
-export const shellExecEffect = createTool<ShellExecArgs, ShellExecData>({
+export const shellExecTool = createTool<ShellExecArgs, ShellExecData>({
 	name: "shell.exec",
 	description:
 		"Execute an arbitrary shell command in the local environment. Use this to run tests, build the project, or check environment status.",
