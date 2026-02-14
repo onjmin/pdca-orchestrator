@@ -91,7 +91,7 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 	},
 
 	/**
-	 * 1. 次に実行すべきエフェクトを1つ選ぶ（選択のみ）
+	 * 1. 次に実行すべきツールを1つ選ぶ（選択のみ）
 	 */
 	async selectNextTool(registry: Map<string, GenericTool>): Promise<GenericTool | null> {
 		const stack = taskStack.getStack();
@@ -206,7 +206,7 @@ Tool: (The exact tool name from the list above)
 	},
 
 	/**
-	 * 2. 選ばれたエフェクトを実行する
+	 * 2. 選ばれたツールを実行する
 	 */
 	async dispatch(tool: GenericTool, task: Task): Promise<ToolResponse<unknown> | undefined> {
 		const observationText = this.getCombinedObservation();

@@ -23,7 +23,6 @@ import { webFetchTool } from "../../tools/web/fetch";
 import { webSearchTool } from "../../tools/web/search";
 import { webWikipediaTool } from "../../tools/web/wikipedia";
 
-// 利用可能なエフェクトのカタログ
 const allTools = [
 	aiTroubleshootTool,
 	fileCreateTool,
@@ -183,7 +182,7 @@ Review your strategy.
 			})();
 
 			if (!nextTool) {
-				// 不正なエフェクトはlsに丸め込む
+				// 不正なツールはlsに丸め込む
 				nextTool = fileListTreeTool;
 			}
 
