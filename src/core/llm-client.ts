@@ -48,7 +48,7 @@ export const llm = {
 /**
  * LLMが混ぜたノイズからJSONを救出する
  */
-function repairAndParseJSON(badJson: string): { data: object | null; error: string | null } {
+export function repairAndParseJSON(badJson: string): { data: object | null; error: string | null } {
 	try {
 		// 1. そのままパース
 		return { data: JSON.parse(badJson), error: null };

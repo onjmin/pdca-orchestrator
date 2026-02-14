@@ -1,6 +1,6 @@
 import type { ToolDefinition, ToolField, ToolResponse } from "../tools/types";
 import { isDebugMode, savePromptLog } from "./debug-log";
-import { llm } from "./llm-client";
+import { llm, repairAndParseJSON } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
 import { truncateForPrompt } from "./utils";
 
@@ -14,6 +14,9 @@ type ControlSnapshot = {
 	chosenTool: string | null;
 	rationale: string;
 };
+
+// 謎フォーマット検知時に事前抽出した引数を保持する
+let _predefinedArgs: Record<string, unknown> | null = null;
 
 export const orchestrator = {
 	_oneTimeInstruction: null as string | null,
@@ -202,6 +205,26 @@ Tool: (The exact tool name from the list above)
 			});
 		}
 
+		// --- [追加] 連想配列（JSON）検知ロジック ---
+		// 文字列の中に {...} が含まれているか探す
+		const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+
+		if (jsonMatch && found) {
+			// パースと正規化を試みる
+			const { data: args, error: jsonError } = repairAndParseJSON(jsonMatch[0]);
+
+			if (!jsonError && args && typeof args === "object") {
+				const toolDef = registry.get(found);
+				if (toolDef) {
+					// LLM生成時のキー名の表記ゆれ（ケース違いや単語順序）を吸収し、スキーマ定義通りのキー名に正規化する。
+					_predefinedArgs = normalizeArgs(
+						args as Record<string, unknown>,
+						Object.keys(toolDef.inputSchema),
+					);
+				}
+			}
+			// 失敗時は _predefinedArgs が null のままなので、自然と STEP 2 へフォールバックされる
+		}
 		return registry.get(found) ?? null;
 	},
 
@@ -209,6 +232,45 @@ Tool: (The exact tool name from the list above)
 	 * 2. 選ばれたツールを実行する
 	 */
 	async dispatch(tool: GenericTool, task: Task): Promise<ToolResponse<unknown> | undefined> {
+		let finalArgs: Record<string, unknown>;
+
+		// 1. 引数の確定 (STEP 2)
+		if (_predefinedArgs) {
+			// selectNextToolで既に連想配列（JSON）を検知済みの場合はそれを使用
+			finalArgs = { ..._predefinedArgs };
+			_predefinedArgs = null; // 消費したらクリア
+		} else {
+			const args = await this.generateArguments(tool, task);
+			if (!args) return; // 内部で lastToolResult をセット済み
+			finalArgs = args;
+		}
+
+		// 2. Raw Dataの補完 (STEP 3)
+		const updatedArgs = await this.retrieveRawData(tool, task, finalArgs);
+		if (!updatedArgs) return; // 内部で lastToolResult をセット済み
+
+		// --- [Execution] ---
+		try {
+			console.log(`[Exec] Running ${tool.name}...`);
+			const result = await tool.handler(updatedArgs);
+			this.lastToolResult = result;
+			return result;
+		} catch (e: unknown) {
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			const failResult: ToolResponse<never> = {
+				success: false,
+				summary: `Runtime error in ${tool.name}`,
+				error: errorMessage,
+			};
+			this.lastToolResult = failResult;
+			return failResult;
+		}
+	},
+
+	/**
+	 * [STEP 2] JSON引数の生成
+	 */
+	async generateArguments(tool: GenericTool, task: Task): Promise<Record<string, unknown> | null> {
 		const observationText = this.getCombinedObservation();
 
 		// --- [STEP 2: Argument Generation] ---
@@ -265,32 +327,43 @@ Respond with ONLY the JSON object.
 				summary: "JSON argument generation failed.",
 				error: jsonError || "INVALID_JSON_STRUCTURE",
 			};
-			return;
+			return null;
 		}
 
-		// LLMが生成した引数の正規化
-		const normalizedArgs = normalizeArgs(
-			args as Record<string, unknown>,
-			Object.keys(tool.inputSchema),
+		return normalizeArgs(args as Record<string, unknown>, Object.keys(tool.inputSchema));
+	},
+
+	/**
+	 * [STEP 3] 特大データ（Raw Data）の取得とマージ
+	 */
+	async retrieveRawData(
+		tool: GenericTool,
+		task: Task,
+		args: Record<string, unknown>,
+	): Promise<Record<string, unknown> | null> {
+		const rawDataField = Object.entries(tool.inputSchema).find(
+			([_, f]) => (f as ToolField).isRawData,
 		);
-		const finalArgs: Record<string, unknown> = { ...normalizedArgs };
+		if (!rawDataField) return args;
 
-		// --- [STEP 3: Raw Data Retrieval] ---
+		const [fieldName, fieldInfo] = rawDataField;
+		// すでに引数に含まれている場合はスキップ
+		if (args[fieldName]) return args;
 
-		if (rawDataFieldName) {
-			const fieldInfo = tool.inputSchema[rawDataFieldName as keyof unknown];
-			const rawPrompt = `
+		const observationText = this.getCombinedObservation();
+
+		const rawPrompt = `
 ### Context
 Task: ${task.title}
 Executing Tool: ${tool.name}
-Target Field: "${rawDataFieldName}" (${(fieldInfo as ToolField).description})
+Target Field: "${fieldName}" (${(fieldInfo as ToolField).description})
 Other Arguments: ${JSON.stringify(args)}
 
 ### Observation (Previous Results & Your Internal Context)
 ${observationText}
 
 ### Instruction
-Provide the ACTUAL content for the field "${rawDataFieldName}".
+Provide the ACTUAL content for the field "${fieldName}".
 Refer to the Observation to ensure the content are appropriate for the current situation.
 If this is code, provide the full source code.
 
@@ -300,38 +373,20 @@ If this is code, provide the full source code.
 - Output ONLY the raw content.
 `.trim();
 
-			await savePromptLog("3-dispatch-raw-input", rawPrompt);
-			const rawContent = await llm.complete(rawPrompt);
-			await savePromptLog("3-dispatch-raw-output", rawContent);
+		await savePromptLog("3-dispatch-raw-input", rawPrompt);
+		const rawContent = await llm.complete(rawPrompt);
+		await savePromptLog("3-dispatch-raw-output", rawContent);
 
-			if (!rawContent) {
-				this.lastToolResult = {
-					success: false,
-					summary: `Failed to retrieve the raw content for field: ${rawDataFieldName}`,
-					error: "RAW_CONTENT_RETRIEVAL_FAILED",
-				};
-				return;
-			}
-
-			finalArgs[rawDataFieldName] = rawContent;
-		}
-
-		// --- [Execution] ---
-		try {
-			console.log(`[Exec] Running ${tool.name}...`);
-			const result = await tool.handler(finalArgs);
-			this.lastToolResult = result;
-			return result;
-		} catch (e: unknown) {
-			const errorMessage = e instanceof Error ? e.message : String(e);
-			const failResult: ToolResponse<never> = {
+		if (!rawContent) {
+			this.lastToolResult = {
 				success: false,
-				summary: `Runtime error in ${tool.name}`,
-				error: errorMessage,
+				summary: `Failed to retrieve the raw content for field: ${fieldName}`,
+				error: "RAW_CONTENT_RETRIEVAL_FAILED",
 			};
-			this.lastToolResult = failResult;
-			return failResult;
+			return null;
 		}
+
+		return { ...args, [fieldName]: rawContent };
 	},
 };
 
