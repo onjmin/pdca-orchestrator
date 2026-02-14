@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { getSafePath } from "./utils";
 
 // 1回のコールで許容する最大行数
@@ -24,7 +24,7 @@ export interface FileReadLinesData {
  * EFFECT: file.read_lines
  * 特定の行範囲を行番号付きで読み取ります。
  */
-export const fileReadLinesEffect = createEffect<FileReadLinesArgs, FileReadLinesData>({
+export const fileReadLinesEffect = createTool<FileReadLinesArgs, FileReadLinesData>({
 	name: "file.read_lines",
 	description: "Read specific lines of a file with line numbers to examine code context.",
 	inputSchema: {
@@ -42,13 +42,13 @@ export const fileReadLinesEffect = createEffect<FileReadLinesArgs, FileReadLines
 		},
 	},
 
-	handler: async (args: FileReadLinesArgs): Promise<EffectResponse<FileReadLinesData>> => {
+	handler: async (args: FileReadLinesArgs): Promise<ToolResponse<FileReadLinesData>> => {
 		try {
 			const { path: filePath, startLine, endLine } = FileReadLinesArgsSchema.parse(args);
 			const safePath = getSafePath(filePath);
 
 			if (startLine > endLine) {
-				return effectResult.fail(
+				return toolResult.fail(
 					`Invalid range: startLine (${startLine}) is greater than endLine (${endLine}).`,
 				);
 			}
@@ -72,14 +72,14 @@ export const fileReadLinesEffect = createEffect<FileReadLinesArgs, FileReadLines
 				? `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}). [Truncated from ${requestedCount} lines]`
 				: `Read ${lines.length} lines (L${startLine}-L${effectiveEndLine}).`;
 
-			return effectResult.ok(summary, {
+			return toolResult.ok(summary, {
 				lines,
 				count: lines.length,
 				isTruncated,
 			});
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Failed to read lines: ${errorMessage}`);
+			return toolResult.fail(`Failed to read lines: ${errorMessage}`);
 		}
 	},
 });

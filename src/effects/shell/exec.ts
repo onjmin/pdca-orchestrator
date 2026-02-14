@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { z } from "zod";
 import { getSafePath } from "../file/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const ShellExecArgsSchema = z.object({
 	cwd: z.string().describe("Directory to execute the command. Defaults to project root."),
@@ -22,7 +22,7 @@ export interface ShellExecData {
  * EFFECT: shell.exec
  * 任意のシェルコマンドを実行します。
  */
-export const shellExecEffect = createEffect<ShellExecArgs, ShellExecData>({
+export const shellExecEffect = createTool<ShellExecArgs, ShellExecData>({
 	name: "shell.exec",
 	description:
 		"Execute an arbitrary shell command in the local environment. Use this to run tests, build the project, or check environment status.",
@@ -41,7 +41,7 @@ export const shellExecEffect = createEffect<ShellExecArgs, ShellExecData>({
 		},
 	},
 
-	handler: async (args: ShellExecArgs): Promise<EffectResponse<ShellExecData>> => {
+	handler: async (args: ShellExecArgs): Promise<ToolResponse<ShellExecData>> => {
 		try {
 			const { cwd, command, timeout } = ShellExecArgsSchema.parse(args);
 			const safeCwd = getSafePath(cwd || ".");
@@ -59,7 +59,7 @@ export const shellExecEffect = createEffect<ShellExecArgs, ShellExecData>({
 				},
 			});
 
-			return effectResult.ok("Command executed successfully.", { stdout });
+			return toolResult.ok("Command executed successfully.", { stdout });
 		} catch (err: unknown) {
 			let errorMessage = "Unknown shell error";
 
@@ -78,7 +78,7 @@ export const shellExecEffect = createEffect<ShellExecArgs, ShellExecData>({
 				errorMessage = `Exit Code: ${status}\nSTDOUT: ${stdout}\nSTDERR: ${stderr}\nMsg: ${errorWithOutput.message}`;
 			}
 
-			return effectResult.fail(errorMessage);
+			return toolResult.fail(errorMessage);
 		}
 	},
 });

@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import { z } from "zod";
 import { getSafePath } from "../file/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const GitCloneArgsSchema = z.object({
 	repository: z.string().describe("The GitHub repository URL or 'owner/repo' format."),
@@ -15,7 +15,7 @@ export type GitCloneArgs = z.infer<typeof GitCloneArgsSchema>;
  * EFFECT: git.clone
  * 指定されたリポジトリをセーフな作業ディレクトリにクローンします。
  */
-export const gitCloneEffect = createEffect<GitCloneArgs, void>({
+export const gitCloneEffect = createTool<GitCloneArgs, void>({
 	name: "git.clone",
 	description: "Clone a repository into the safe workspace directory.",
 	inputSchema: {
@@ -29,14 +29,14 @@ export const gitCloneEffect = createEffect<GitCloneArgs, void>({
 		},
 	},
 
-	handler: async (args: GitCloneArgs): Promise<EffectResponse<void>> => {
+	handler: async (args: GitCloneArgs): Promise<ToolResponse<void>> => {
 		try {
 			const { repository, recursive } = GitCloneArgsSchema.parse(args);
 			const safeRoot = getSafePath(".");
 
 			// すでに .git がある場合はクローン済みとみなす
 			if (fs.existsSync(`${safeRoot}/.git`)) {
-				return effectResult.okVoid(`Repository already exists at ${safeRoot}. Skipping clone.`);
+				return toolResult.okVoid(`Repository already exists at ${safeRoot}. Skipping clone.`);
 			}
 
 			const token = process.env.GITHUB_TOKEN;
@@ -57,10 +57,10 @@ export const gitCloneEffect = createEffect<GitCloneArgs, void>({
 				env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
 			});
 
-			return effectResult.okVoid(`Successfully cloned ${repository} to ${safeRoot}.`);
+			return toolResult.okVoid(`Successfully cloned ${repository} to ${safeRoot}.`);
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Clone failed: ${msg}`);
+			return toolResult.fail(`Clone failed: ${msg}`);
 		}
 	},
 });

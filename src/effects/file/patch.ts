@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
 import { truncateForPrompt } from "../../core/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { getSafePath } from "./utils"; // getSafePath をインポート
 
 export const FilePatchArgsSchema = z.object({
@@ -17,7 +17,7 @@ export type FilePatchArgs = z.infer<typeof FilePatchArgsSchema>;
  * EFFECT: file.patch
  * 指定された行範囲 (startLine-endLine) を新しい内容で置換します。
  */
-export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
+export const filePatchEffect = createTool<FilePatchArgs, { path: string }>({
 	name: "file.patch",
 	description:
 		"Replace a specific line range in a file with new content. Use read_lines first to identify line numbers.",
@@ -41,14 +41,14 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 		},
 	},
 
-	handler: async (args: FilePatchArgs): Promise<EffectResponse<{ path: string }>> => {
+	handler: async (args: FilePatchArgs): Promise<ToolResponse<{ path: string }>> => {
 		try {
 			const { path: filePath, startLine, endLine, insertText } = FilePatchArgsSchema.parse(args);
 
 			const safeAbsolutePath = getSafePath(filePath);
 
 			if (startLine > endLine) {
-				return effectResult.fail(`Invalid range: startLine (${startLine}) > endLine (${endLine})`);
+				return toolResult.fail(`Invalid range: startLine (${startLine}) > endLine (${endLine})`);
 			}
 
 			const content = await fs.readFile(safeAbsolutePath, "utf-8");
@@ -56,7 +56,7 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 
 			// バリデーション: 指定された行がファイル内に存在するか
 			if (startLine > lines.length) {
-				return effectResult.fail(`Start line ${startLine} exceeds file length (${lines.length}).`);
+				return toolResult.fail(`Start line ${startLine} exceeds file length (${lines.length}).`);
 			}
 
 			// 行の置換処理
@@ -74,7 +74,7 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 			const previewLines = lines.slice(contextStart, contextEnd + 1);
 			const preview = previewLines.join("\n");
 
-			return effectResult.ok(
+			return toolResult.ok(
 				`Successfully patched ${filePath} (L${startLine}-L${endLine} replaced).\n` +
 					`New Content Snapshot around L${startLine}:\n---\n${truncateForPrompt(preview, 200)}\n---`,
 				{
@@ -83,7 +83,7 @@ export const filePatchEffect = createEffect<FilePatchArgs, { path: string }>({
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`File patch failed: ${errorMessage}`);
+			return toolResult.fail(`File patch failed: ${errorMessage}`);
 		}
 	},
 });

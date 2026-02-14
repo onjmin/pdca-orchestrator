@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const WebWikipediaArgsSchema = z.object({
 	query: z.string().describe("The topic or keyword to look up (e.g., 'Category theory')."),
@@ -17,7 +17,7 @@ export interface WebWikipediaData {
  * EFFECT: web.wikipedia
  * Wikipedia の API を使用して、特定のトピックに関する情報を取得します。
  */
-export const webWikipediaEffect = createEffect<WebWikipediaArgs, WebWikipediaData>({
+export const webWikipediaEffect = createTool<WebWikipediaArgs, WebWikipediaData>({
 	name: "web.wikipedia",
 	description: "Fetch a summarized explanation of a specific topic from Wikipedia.",
 	inputSchema: {
@@ -27,7 +27,7 @@ export const webWikipediaEffect = createEffect<WebWikipediaArgs, WebWikipediaDat
 		},
 	},
 
-	handler: async (args: WebWikipediaArgs): Promise<EffectResponse<WebWikipediaData>> => {
+	handler: async (args: WebWikipediaArgs): Promise<ToolResponse<WebWikipediaData>> => {
 		try {
 			const { query } = WebWikipediaArgsSchema.parse(args);
 
@@ -41,11 +41,11 @@ export const webWikipediaEffect = createEffect<WebWikipediaArgs, WebWikipediaDat
 			});
 
 			if (response.status === 404) {
-				return effectResult.fail(`Topic "${query}" not found on Wikipedia.`);
+				return toolResult.fail(`Topic "${query}" not found on Wikipedia.`);
 			}
 
 			if (!response.ok) {
-				return effectResult.fail(`Wikipedia API error: ${response.status}`);
+				return toolResult.fail(`Wikipedia API error: ${response.status}`);
 			}
 
 			const data = await response.json();
@@ -56,10 +56,10 @@ export const webWikipediaEffect = createEffect<WebWikipediaArgs, WebWikipediaDat
 				content_url: data.content_urls?.desktop?.page ?? "",
 			};
 
-			return effectResult.ok(`Successfully retrieved information about "${result.title}".`, result);
+			return toolResult.ok(`Successfully retrieved information about "${result.title}".`, result);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Wikipedia lookup failed: ${errorMessage}`);
+			return toolResult.fail(`Wikipedia lookup failed: ${errorMessage}`);
 		}
 	},
 });

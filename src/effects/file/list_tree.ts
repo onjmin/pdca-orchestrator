@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { getSafePath } from "./utils";
 
 export const FileListTreeArgsSchema = z.object({
@@ -18,7 +18,7 @@ export interface FileListTreeData {
  * EFFECT: file.list_tree
  * tree コマンドを使用してディレクトリ構造を視覚化します。
  */
-export const fileListTreeEffect = createEffect<FileListTreeArgs, FileListTreeData>({
+export const fileListTreeEffect = createTool<FileListTreeArgs, FileListTreeData>({
 	name: "file.list_tree",
 	description: "Get the visual tree structure of the workspace using the 'tree' command.",
 	inputSchema: {
@@ -32,7 +32,7 @@ export const fileListTreeEffect = createEffect<FileListTreeArgs, FileListTreeDat
 		},
 	},
 
-	handler: async (args: FileListTreeArgs): Promise<EffectResponse<FileListTreeData>> => {
+	handler: async (args: FileListTreeArgs): Promise<ToolResponse<FileListTreeData>> => {
 		try {
 			const { path: rootPath, depth } = FileListTreeArgsSchema.parse(args);
 			const safePath = getSafePath(rootPath);
@@ -47,12 +47,12 @@ export const fileListTreeEffect = createEffect<FileListTreeArgs, FileListTreeDat
 				stdio: "pipe",
 			});
 
-			return effectResult.ok(`Project tree for ${rootPath} (depth: ${depth})`, {
+			return toolResult.ok(`Project tree for ${rootPath} (depth: ${depth})`, {
 				tree: treeOutput,
 			});
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Failed to execute tree command: ${errorMessage}`);
+			return toolResult.fail(`Failed to execute tree command: ${errorMessage}`);
 		}
 	},
 });

@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { z } from "zod";
 import { getSafePath } from "../file/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const GitCheckoutArgsSchema = z.object({
 	branch: z.string().describe("The name of the branch to checkout."),
@@ -16,7 +16,7 @@ export type GitCheckoutArgs = z.infer<typeof GitCheckoutArgsSchema>;
  * EFFECT: git.checkout
  * 指定ブランチへ切り替えます。
  */
-export const gitCheckoutEffect = createEffect<GitCheckoutArgs, void>({
+export const gitCheckoutEffect = createTool<GitCheckoutArgs, void>({
 	name: "git.checkout",
 	description: "Checkout a branch. By default, it resets local changes to ensure success.",
 	inputSchema: {
@@ -38,7 +38,7 @@ export const gitCheckoutEffect = createEffect<GitCheckoutArgs, void>({
 		},
 	},
 
-	handler: async (args: GitCheckoutArgs): Promise<EffectResponse<void>> => {
+	handler: async (args: GitCheckoutArgs): Promise<ToolResponse<void>> => {
 		try {
 			const { branch, createIfMissing, startPoint, force } = GitCheckoutArgsSchema.parse(args);
 			const safeCwd = getSafePath(".");
@@ -65,7 +65,7 @@ export const gitCheckoutEffect = createEffect<GitCheckoutArgs, void>({
 			console.log(`[GitCheckout] Executing: ${command}`);
 			git(command);
 
-			return effectResult.okVoid(`Successfully checked out to branch: ${branch}`);
+			return toolResult.okVoid(`Successfully checked out to branch: ${branch}`);
 		} catch (err: unknown) {
 			let errorMessage = "Checkout failed";
 			if (err && typeof err === "object" && "stderr" in err) {
@@ -73,7 +73,7 @@ export const gitCheckoutEffect = createEffect<GitCheckoutArgs, void>({
 			} else if (err instanceof Error) {
 				errorMessage = err.message;
 			}
-			return effectResult.fail(errorMessage);
+			return toolResult.fail(errorMessage);
 		}
 	},
 });

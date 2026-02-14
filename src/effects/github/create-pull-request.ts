@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import { getSafePath } from "../file/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const CreatePullRequestArgsSchema = z.object({
 	title: z.string().describe("The title of the pull request. Summarize the changes concisely."),
@@ -27,7 +27,7 @@ export interface CreatePullRequestData {
  * ローカルの変更をコミットし、リモートへプッシュした上で、GitHub上でPRを作成します。
  * 小人が仕事を完成させた際の「最終報告」用ツールです。
  */
-export const githubCreatePullRequestEffect = createEffect<
+export const githubCreatePullRequestEffect = createTool<
 	CreatePullRequestArgs,
 	CreatePullRequestData
 >({
@@ -53,7 +53,7 @@ export const githubCreatePullRequestEffect = createEffect<
 		},
 	},
 
-	handler: async (args: CreatePullRequestArgs): Promise<EffectResponse<CreatePullRequestData>> => {
+	handler: async (args: CreatePullRequestArgs): Promise<ToolResponse<CreatePullRequestData>> => {
 		try {
 			const { title, body, branch, base } = CreatePullRequestArgsSchema.parse(args);
 			const safeCwd = getSafePath(".");
@@ -61,7 +61,7 @@ export const githubCreatePullRequestEffect = createEffect<
 			const ownerRepo = process.env.GITHUB_TARGET_REPO;
 
 			if (!token || !ownerRepo) {
-				return effectResult.fail(
+				return toolResult.fail(
 					"Security Error: GITHUB_TOKEN or GITHUB_TARGET_REPO is not configured in .env",
 				);
 			}
@@ -82,7 +82,7 @@ export const githubCreatePullRequestEffect = createEffect<
 				if (err && typeof err === "object" && ("stdout" in err || "stderr" in err)) {
 					const out = String((err as { stdout?: string }).stdout || "");
 					if (out.includes("nothing to commit")) {
-						return effectResult.fail(
+						return toolResult.fail(
 							"No changes detected in the workspace. Please make sure you have modified or created files before creating a PR.",
 						);
 					}
@@ -106,7 +106,7 @@ export const githubCreatePullRequestEffect = createEffect<
 				base,
 			});
 
-			return effectResult.ok(`Successfully created Pull Request: ${pr.html_url}`, {
+			return toolResult.ok(`Successfully created Pull Request: ${pr.html_url}`, {
 				url: pr.html_url,
 			});
 		} catch (err: unknown) {
@@ -125,7 +125,7 @@ export const githubCreatePullRequestEffect = createEffect<
 				errorMessage = err.message;
 			}
 
-			return effectResult.fail(`GitHub API Error: ${errorMessage}`);
+			return toolResult.fail(`GitHub API Error: ${errorMessage}`);
 		}
 	},
 });

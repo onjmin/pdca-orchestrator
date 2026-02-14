@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { getSafePath } from "./utils";
 
 export const FileGrepArgsSchema = z.object({
@@ -19,7 +19,7 @@ export interface FileGrepData {
  * EFFECT: file.grep
  * システムの grep コマンドを使用してパターンを高速検索します。
  */
-export const fileGrepEffect = createEffect<FileGrepArgs, FileGrepData>({
+export const fileGrepEffect = createTool<FileGrepArgs, FileGrepData>({
 	name: "file.grep",
 	description:
 		"Search for patterns with context. Results include line numbers and surrounding lines.",
@@ -29,7 +29,7 @@ export const fileGrepEffect = createEffect<FileGrepArgs, FileGrepData>({
 		recursive: { type: "boolean", description: "Enable recursive search." },
 	},
 
-	handler: async (args: FileGrepArgs): Promise<EffectResponse<FileGrepData>> => {
+	handler: async (args: FileGrepArgs): Promise<ToolResponse<FileGrepData>> => {
 		try {
 			const { path: searchPath, pattern, recursive } = FileGrepArgsSchema.parse(args);
 			const safePath = getSafePath(searchPath);
@@ -58,15 +58,15 @@ export const fileGrepEffect = createEffect<FileGrepArgs, FileGrepData>({
 				.filter((line) => line.length > 0)
 				.slice(0, 50);
 
-			return effectResult.ok(`Found ${results.length} lines of matches and context.`, {
+			return toolResult.ok(`Found ${results.length} lines of matches and context.`, {
 				results: results,
 			});
 		} catch (err: unknown) {
 			if (err instanceof Error && "status" in err && err.status === 1) {
-				return effectResult.ok("No matches found.", { results: [] });
+				return toolResult.ok("No matches found.", { results: [] });
 			}
 			const errorMessage = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Grep error: ${errorMessage}`);
+			return toolResult.fail(`Grep error: ${errorMessage}`);
 		}
 	},
 });

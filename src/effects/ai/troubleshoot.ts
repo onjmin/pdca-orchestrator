@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { llm } from "../../core/llm-client";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const TroubleshootArgsSchema = z.object({
 	error: z.string(),
@@ -12,7 +12,7 @@ export const TroubleshootArgsSchema = z.object({
  * EFFECT: ai.troubleshoot
  * 期待した結果と現実の差異を特定し、詰まりを解消するための直接的な手順を生成します。
  */
-export const aiTroubleshootEffect = createEffect<z.infer<typeof TroubleshootArgsSchema>, string>({
+export const aiTroubleshootEffect = createTool<z.infer<typeof TroubleshootArgsSchema>, string>({
 	name: "ai.troubleshoot",
 	description:
 		"Identify why an action failed and get the exact steps to fix the issue and move forward.",
@@ -31,7 +31,7 @@ export const aiTroubleshootEffect = createEffect<z.infer<typeof TroubleshootArgs
 			isRawData: true,
 		},
 	},
-	handler: async (args): Promise<EffectResponse<string>> => {
+	handler: async (args): Promise<ToolResponse<string>> => {
 		try {
 			const { error, last_action, context } = args;
 
@@ -44,11 +44,11 @@ export const aiTroubleshootEffect = createEffect<z.infer<typeof TroubleshootArgs
 
 			const result = await llm.complete(`${systemPrompt}\n\n${userPrompt}`);
 
-			if (!result) return effectResult.fail("Failed to generate troubleshooting steps.");
+			if (!result) return toolResult.fail("Failed to generate troubleshooting steps.");
 
-			return effectResult.ok("Tactical fix generated.", result.trim());
+			return toolResult.ok("Tactical fix generated.", result.trim());
 		} catch (err) {
-			return effectResult.fail(`Troubleshoot Error: ${String(err)}`);
+			return toolResult.fail(`Troubleshoot Error: ${String(err)}`);
 		}
 	},
 });

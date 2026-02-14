@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { emitDiscordInternalLog } from "./utils";
 
 // フラットなスキーマ定義
@@ -17,7 +17,7 @@ export type SplitArgs = z.infer<typeof SplitArgsSchema>;
  * EFFECT: task.split
  * サブタスクをスタックに積みます。
  */
-export const taskSplitEffect = createEffect<SplitArgs, void>({
+export const taskSplitEffect = createTool<SplitArgs, void>({
 	name: "task.split",
 	description:
 		"Create a sub-task to break down implementation or to create a specific verification task.",
@@ -40,14 +40,14 @@ export const taskSplitEffect = createEffect<SplitArgs, void>({
 		},
 	},
 
-	handler: async (args: SplitArgs): Promise<EffectResponse<void>> => {
+	handler: async (args: SplitArgs): Promise<ToolResponse<void>> => {
 		try {
 			// Zodでバリデーション
 			const { title, description, dod, reasoning } = SplitArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
-				return effectResult.fail("No parent task found in the stack to split.");
+				return toolResult.fail("No parent task found in the stack to split.");
 			}
 
 			console.log(`[TaskSplit] Reasoning: ${reasoning}`);
@@ -70,13 +70,13 @@ export const taskSplitEffect = createEffect<SplitArgs, void>({
 					`**Reasoning**: ${reasoning}`,
 			);
 
-			return effectResult.okVoid(
+			return toolResult.okVoid(
 				`Sub-task "${title}" has been pushed to the stack. Focus on this sub-task now.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			await emitDiscordInternalLog("error", `🚨 **Split Error**: ${errorMessage}`);
-			return effectResult.fail(`Split error: ${errorMessage}`);
+			return toolResult.fail(`Split error: ${errorMessage}`);
 		}
 	},
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { emitDiscordInternalLog } from "./utils";
 
 export const CheckArgsSchema = z.object({
@@ -19,7 +19,7 @@ export interface CheckData {
  * EFFECT: task.check
  * タスクの完了を判定します。
  */
-export const taskCheckEffect = createEffect<CheckArgs, CheckData>({
+export const taskCheckEffect = createTool<CheckArgs, CheckData>({
 	name: "task.check",
 	description:
 		"Evaluate the current task status against the Definition of Done (DoD). Use this to declare the task as 'passed' (completed) or 'failed' (needs more work).",
@@ -38,13 +38,13 @@ export const taskCheckEffect = createEffect<CheckArgs, CheckData>({
 		},
 	},
 
-	handler: async (args: CheckArgs): Promise<EffectResponse<CheckData>> => {
+	handler: async (args: CheckArgs): Promise<ToolResponse<CheckData>> => {
 		try {
 			const { observations, isPassed, reason } = CheckArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
-				return effectResult.fail("No task found in the stack. Cannot perform check.");
+				return toolResult.fail("No task found in the stack. Cannot perform check.");
 			}
 
 			console.log(`[TaskCheck] Observation: ${observations}`);
@@ -57,7 +57,7 @@ export const taskCheckEffect = createEffect<CheckArgs, CheckData>({
 
 				await emitDiscordInternalLog("success", `✅ Task Completed: ${title}\nReason: ${reason}`);
 
-				return effectResult.ok(`Task "${title}" COMPLETED. Environment is now stable.`, {
+				return toolResult.ok(`Task "${title}" COMPLETED. Environment is now stable.`, {
 					status: "completed",
 				});
 			}
@@ -68,11 +68,11 @@ export const taskCheckEffect = createEffect<CheckArgs, CheckData>({
 			);
 
 			// 説教（Hint）を削除し、純粋な結果のみを返す
-			return effectResult.ok(`STILL IN PROGRESS: ${reason}.`, { status: "continuing" });
+			return toolResult.ok(`STILL IN PROGRESS: ${reason}.`, { status: "continuing" });
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			await emitDiscordInternalLog("error", `🚨 **Check Error**: ${errorMessage}`);
-			return effectResult.fail(`Check execution error: ${errorMessage}`);
+			return toolResult.fail(`Check execution error: ${errorMessage}`);
 		}
 	},
 });

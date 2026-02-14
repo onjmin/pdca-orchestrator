@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { emitDiscordInternalLog } from "./utils";
 
 export const TaskWaitArgsSchema = z.object({
@@ -13,7 +13,7 @@ export type TaskWaitArgs = z.infer<typeof TaskWaitArgsSchema>;
  * EFFECT: task.wait
  * 指定した時間だけ待機し、Discord にその旨を報告します。
  */
-export const taskWaitEffect = createEffect<TaskWaitArgs, void>({
+export const taskWaitEffect = createTool<TaskWaitArgs, void>({
 	name: "task.wait",
 	description:
 		"Wait for a specified duration during task execution to let external processes sync or complete.",
@@ -28,7 +28,7 @@ export const taskWaitEffect = createEffect<TaskWaitArgs, void>({
 		},
 	},
 
-	handler: async (args: TaskWaitArgs): Promise<EffectResponse<void>> => {
+	handler: async (args: TaskWaitArgs): Promise<ToolResponse<void>> => {
 		try {
 			const { ms, reason } = TaskWaitArgsSchema.parse(args);
 
@@ -38,11 +38,11 @@ export const taskWaitEffect = createEffect<TaskWaitArgs, void>({
 
 			await new Promise((resolve) => setTimeout(resolve, ms));
 
-			return effectResult.okVoid(`Waiting completed (${ms}ms). Reason: ${reason}`);
+			return toolResult.okVoid(`Waiting completed (${ms}ms). Reason: ${reason}`);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			await emitDiscordInternalLog("error", `🚨 **Wait Error**: ${errorMessage}`);
-			return effectResult.fail(`Wait error: ${errorMessage}`);
+			return toolResult.fail(`Wait error: ${errorMessage}`);
 		}
 	},
 });

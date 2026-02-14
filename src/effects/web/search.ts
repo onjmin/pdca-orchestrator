@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 
 export const WebSearchArgsSchema = z.object({
 	query: z.string().describe("The search query to look up on the internet."),
@@ -32,7 +32,7 @@ interface TavilyResponse {
  * EFFECT: web.search
  * 外部知識が必要な場合にインターネット検索を実行します。
  */
-export const webSearchEffect = createEffect<WebSearchArgs, WebSearchData>({
+export const webSearchEffect = createTool<WebSearchArgs, WebSearchData>({
 	name: "web.search",
 	description: "Search the web for external knowledge or latest documentation.",
 	inputSchema: {
@@ -42,13 +42,13 @@ export const webSearchEffect = createEffect<WebSearchArgs, WebSearchData>({
 		},
 	},
 
-	handler: async (args: WebSearchArgs): Promise<EffectResponse<WebSearchData>> => {
+	handler: async (args: WebSearchArgs): Promise<ToolResponse<WebSearchData>> => {
 		try {
 			const { query } = WebSearchArgsSchema.parse(args);
 			const apiKey = process.env.TAVILY_API_KEY;
 
 			if (!apiKey) {
-				return effectResult.fail("TAVILY_API_KEY is not set.");
+				return toolResult.fail("TAVILY_API_KEY is not set.");
 			}
 
 			console.log(`[Tavily] Searching: "${query}"...`);
@@ -71,7 +71,7 @@ export const webSearchEffect = createEffect<WebSearchArgs, WebSearchData>({
 			const data = (await response.json()) as TavilyResponse;
 
 			if (!data.results || !Array.isArray(data.results)) {
-				return effectResult.ok("Search completed, but no results found.", { results: [] });
+				return toolResult.ok("Search completed, but no results found.", { results: [] });
 			}
 
 			const results: SearchResult[] = data.results.map((r) => ({
@@ -80,10 +80,10 @@ export const webSearchEffect = createEffect<WebSearchArgs, WebSearchData>({
 				title: r.title,
 			}));
 
-			return effectResult.ok(`Search completed for "${query}".`, { results });
+			return toolResult.ok(`Search completed for "${query}".`, { results });
 		} catch (err: unknown) {
 			const msg = err instanceof Error ? err.message : String(err);
-			return effectResult.fail(`Web search failed: ${msg}`);
+			return toolResult.fail(`Web search failed: ${msg}`);
 		}
 	},
 });

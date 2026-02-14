@@ -1,4 +1,4 @@
-import type { EffectDefinition, EffectField, EffectResponse } from "../effects/types";
+import type { ToolDefinition, ToolField, ToolResponse } from "../effects/types";
 import { isDebugMode, savePromptLog } from "./debug-log";
 import { llm } from "./llm-client";
 import { type Task, taskStack } from "./stack-manager";
@@ -8,7 +8,7 @@ import { truncateForPrompt } from "./utils";
 // 1. 各Effectの引数型が異なるため、unknownでは反変性の制約によりMapへの代入が不可能になる。
 // 2. LLMが生成した動的なJSONを型安全の境界を越えて注入するため、意図的に型を消去している。
 // biome-ignore lint/suspicious/noExplicitAny: カタログ形式での一括管理と実行時の動的注入を両立するための意図的な型消去
-type GenericEffect = EffectDefinition<any, any>;
+type GenericEffect = ToolDefinition<any, any>;
 
 type ControlSnapshot = {
 	chosenEffect: string | null;
@@ -72,12 +72,12 @@ Your previous rationale: "${lastControlSnapshot.rationale}"
 	},
 
 	// 最新のEffect execution結果を保持するバッファ
-	_lastResult: null as EffectResponse<unknown> | null,
+	_lastResult: null as ToolResponse<unknown> | null,
 
 	/**
 	 * 最新の実行結果をセットする (setter)
 	 */
-	set lastEffectResult(result: EffectResponse<unknown> | null) {
+	set lastEffectResult(result: ToolResponse<unknown> | null) {
 		this._lastResult = result;
 	},
 
@@ -135,7 +135,7 @@ ${tools}
 ${observationText}
 
 ### Instruction
-Based on the current task, strategy, and observation, which effect should you execute next?
+Based on the current task, strategy, and observation, which tool should you execute next?
 ${this.oneTimeInstruction}
 
 Respond in the following format:
@@ -208,15 +208,13 @@ Effect: (The exact effect name from the list above)
 	/**
 	 * 2. 選ばれたエフェクトを実行する
 	 */
-	async dispatch(effect: GenericEffect, task: Task): Promise<EffectResponse<unknown> | undefined> {
+	async dispatch(effect: GenericEffect, task: Task): Promise<ToolResponse<unknown> | undefined> {
 		const observationText = this.getCombinedObservation();
 
 		// --- [STEP 2: Argument Generation] ---
 
 		let rawDataFieldName = "";
-		const inputSchemaOmitted = (
-			Object.entries(effect.inputSchema) as [string, EffectField][]
-		).reduce(
+		const inputSchemaOmitted = (Object.entries(effect.inputSchema) as [string, ToolField][]).reduce(
 			(acc, [key, field]) => {
 				if (field.isRawData) {
 					if (rawDataFieldName) {
@@ -231,7 +229,7 @@ Effect: (The exact effect name from the list above)
 				acc[key] = field;
 				return acc;
 			},
-			{} as Record<string, EffectField>,
+			{} as Record<string, ToolField>,
 		);
 
 		const argPrompt = `
@@ -279,7 +277,7 @@ Respond with ONLY the JSON object.
 ### Context
 Task: ${task.title}
 Executing Tool: ${effect.name}
-Target Field: "${rawDataFieldName}" (${(fieldInfo as EffectField).description})
+Target Field: "${rawDataFieldName}" (${(fieldInfo as ToolField).description})
 Other Arguments: ${JSON.stringify(args)}
 
 ### Observation (Previous Results & Your Internal Context)
@@ -320,7 +318,7 @@ If this is code, provide the full source code.
 			return result;
 		} catch (e: unknown) {
 			const errorMessage = e instanceof Error ? e.message : String(e);
-			const failResult: EffectResponse<never> = {
+			const failResult: ToolResponse<never> = {
 				success: false,
 				summary: `Runtime error in ${effect.name}`,
 				error: errorMessage,

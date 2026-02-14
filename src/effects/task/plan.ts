@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { taskStack } from "../../core/stack-manager";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { emitDiscordInternalLog } from "./utils";
 
 export const PlanArgsSchema = z.object({
@@ -14,7 +14,7 @@ export type PlanArgs = z.infer<typeof PlanArgsSchema>;
  * EFFECT: task.plan
  * 戦略を策定し、内容を Discord に報告します。
  */
-export const taskPlanEffect = createEffect<PlanArgs, void>({
+export const taskPlanEffect = createTool<PlanArgs, void>({
 	name: "task.plan",
 	description: "Formulate a strategy to achieve the current task's DoD.",
 	inputSchema: {
@@ -28,13 +28,13 @@ export const taskPlanEffect = createEffect<PlanArgs, void>({
 		},
 	},
 
-	handler: async (args: PlanArgs): Promise<EffectResponse<void>> => {
+	handler: async (args: PlanArgs): Promise<ToolResponse<void>> => {
 		try {
 			const { strategy, reasoning } = PlanArgsSchema.parse(args);
 			const currentTask = taskStack.currentTask;
 
 			if (!currentTask) {
-				return effectResult.fail("No active task found in the stack to plan for.");
+				return toolResult.fail("No active task found in the stack to plan for.");
 			}
 
 			taskStack.updateCurrentTask({
@@ -52,13 +52,13 @@ export const taskPlanEffect = createEffect<PlanArgs, void>({
 					`**Reasoning**:\n${reasoning}`,
 			);
 
-			return effectResult.okVoid(
+			return toolResult.okVoid(
 				`Strategy for "${currentTask.title}" has been updated. Proceed with implementation.`,
 			);
 		} catch (err) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			await emitDiscordInternalLog("error", `🚨 **Plan Error**: ${errorMessage}`);
-			return effectResult.fail(`Planning error: ${errorMessage}`);
+			return toolResult.fail(`Planning error: ${errorMessage}`);
 		}
 	},
 });

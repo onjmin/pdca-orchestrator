@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
 import { truncateForPrompt } from "../../core/utils";
-import { createEffect, type EffectResponse, effectResult } from "../types";
+import { createTool, type ToolResponse, toolResult } from "../types";
 import { getSafePath } from "./utils"; // getSafePath をインポート
 
 export const FileInsertAtArgsSchema = z.object({
@@ -12,7 +12,7 @@ export const FileInsertAtArgsSchema = z.object({
 
 export type FileInsertAtArgs = z.infer<typeof FileInsertAtArgsSchema>;
 
-export const fileInsertAtEffect = createEffect<FileInsertAtArgs, { path: string }>({
+export const fileInsertAtEffect = createTool<FileInsertAtArgs, { path: string }>({
 	name: "file.insert_at",
 	description: "Insert text at a specific line number without deleting existing content.",
 	inputSchema: {
@@ -30,7 +30,7 @@ export const fileInsertAtEffect = createEffect<FileInsertAtArgs, { path: string 
 			isRawData: true,
 		},
 	},
-	handler: async (args: FileInsertAtArgs): Promise<EffectResponse<{ path: string }>> => {
+	handler: async (args: FileInsertAtArgs): Promise<ToolResponse<{ path: string }>> => {
 		try {
 			const { path: filePath, atLine, insertText } = FileInsertAtArgsSchema.parse(args);
 
@@ -48,13 +48,13 @@ export const fileInsertAtEffect = createEffect<FileInsertAtArgs, { path: string 
 			const previewEnd = Math.min(lines.length, atLine + 1);
 			const preview = lines.slice(previewStart, previewEnd).join("\n");
 
-			return effectResult.ok(
+			return toolResult.ok(
 				`Successfully inserted text into ${filePath} at line ${atLine}.\n` +
 					`Context Snapshot:\n---\n${truncateForPrompt(preview, 200)}\n---`,
 				{ path: filePath },
 			);
 		} catch (err) {
-			return effectResult.fail(
+			return toolResult.fail(
 				`Insertion failed: ${err instanceof Error ? err.message : String(err)}`,
 			);
 		}
