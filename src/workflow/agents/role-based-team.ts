@@ -1,17 +1,10 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
+import { emitDiscordLogWithTranslation } from "../../core/discord-logger";
 import { llm } from "../../core/llm-client";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
-import { aiTroubleshootTool } from "../../tools/ai/troubleshoot";
-import { fileCreateTool } from "../../tools/file/create";
-import { fileGrepTool } from "../../tools/file/grep";
-import { fileInsertAtTool } from "../../tools/file/insert_at";
-import { fileListTreeTool } from "../../tools/file/list_tree";
-import { filePatchTool } from "../../tools/file/patch";
-import { fileReadLinesTool } from "../../tools/file/read_lines";
-import { shellExecTool } from "../../tools/shell/exec";
 import { taskCheckTool } from "../../tools/task/check";
 
 type Role = "planner" | "researcher" | "builder" | "reviewer" | "critic";
@@ -105,6 +98,11 @@ export async function run() {
 		turns: 0,
 	});
 
+	await emitDiscordLogWithTranslation(
+		"info",
+		`👥 **Team Started**\n\n**Goal:** ${goal.title}\n\nTeam Members:\n${team.map((m) => `- ${m.role}: ${m.description}`).join("\n")}`,
+	);
+
 	let turn = 0;
 	const MAX_TURNS = 80;
 	const MAX_CRITIC_LOOPS = 3;
@@ -127,14 +125,24 @@ export async function run() {
 						const plan = await teamPlan(goal, team);
 						console.log("  → 計画:", plan.substring(0, 80) + "...");
 
+						await emitDiscordLogWithTranslation("info", `📋 **Planner's Plan**\n\n${plan}`);
+
 						const feedback = await teamCritic(goal, team, "plan", plan);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
+							await emitDiscordLogWithTranslation(
+								"warning",
+								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
+							);
 							if (feedback.targetRole === "planner") {
 								currentPhase = "plan";
 								criticLoops++;
 							}
 						} else {
+							await emitDiscordLogWithTranslation(
+								"success",
+								`✅ **Critic: PASS**\n\nPlan approved, moving to research.`,
+							);
 							currentPhase = "research";
 							criticLoops = 0;
 						}
@@ -145,14 +153,27 @@ export async function run() {
 						const researchResult = await teamResearch(goal, team);
 						console.log("  → 調査:", researchResult.substring(0, 80) + "...");
 
+						await emitDiscordLogWithTranslation(
+							"info",
+							`🔍 **Researcher's Findings**\n\n${researchResult}`,
+						);
+
 						const feedback = await teamCritic(goal, team, "research", researchResult);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
+							await emitDiscordLogWithTranslation(
+								"warning",
+								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
+							);
 							if (feedback.targetRole === "researcher") {
 								currentPhase = "research";
 								criticLoops++;
 							}
 						} else {
+							await emitDiscordLogWithTranslation(
+								"success",
+								`✅ **Critic: PASS**\n\nResearch approved, moving to build.`,
+							);
 							currentPhase = "build";
 							criticLoops = 0;
 						}
@@ -163,14 +184,27 @@ export async function run() {
 						const buildResult = await teamBuild(goal, team, "");
 						console.log("  → 構築:", buildResult.substring(0, 80) + "...");
 
+						await emitDiscordLogWithTranslation(
+							"info",
+							`🔨 **Builder's Implementation**\n\n${buildResult}`,
+						);
+
 						const feedback = await teamCritic(goal, team, "build", buildResult);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
+							await emitDiscordLogWithTranslation(
+								"warning",
+								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
+							);
 							if (feedback.targetRole === "builder") {
 								currentPhase = "build";
 								criticLoops++;
 							}
 						} else {
+							await emitDiscordLogWithTranslation(
+								"success",
+								`✅ **Critic: PASS**\n\nBuild approved, moving to review.`,
+							);
 							currentPhase = "review";
 							criticLoops = 0;
 						}
@@ -180,12 +214,25 @@ export async function run() {
 						console.log("🔎 レビュー...");
 						const reviewResult = await teamReview(goal, team, "");
 
+						await emitDiscordLogWithTranslation(
+							"info",
+							`🔎 **Reviewer's Assessment**\n\n${reviewResult}`,
+						);
+
 						if (reviewResult.includes("OK") || reviewResult.includes("成功")) {
 							console.log("🎉 チーム目標達成！");
+							await emitDiscordLogWithTranslation(
+								"success",
+								`🎉 **Team Goal Achieved!**\n\nThe goal has been completed successfully.`,
+							);
 							taskStack.pop();
 							currentPhase = "done";
 						} else {
 							console.log("⚠️ レビュー指摘:", reviewResult);
+							await emitDiscordLogWithTranslation(
+								"warning",
+								`⚠️ **Review Issues Found**\n\n${reviewResult}`,
+							);
 							orchestrator.oneTimeInstruction = `Review feedback: ${reviewResult}. Fix the issues.`;
 							await orchestrator.dispatch(taskCheckTool, currentTask);
 							currentPhase = "build";
