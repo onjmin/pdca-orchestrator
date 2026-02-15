@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
-import { emitDiscordLogWithTranslation } from "../../core/discord-logger";
+import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { llm } from "../../core/llm-client";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
@@ -98,7 +98,7 @@ export async function run() {
 		turns: 0,
 	});
 
-	await emitDiscordLogWithTranslation(
+	await emitDiscordWebhook(
 		"info",
 		`👥 **Team Started**\n\n**Goal:** ${goal.title}\n\nTeam Members:\n${team.map((m) => `- ${m.role}: ${m.description}`).join("\n")}`,
 	);
@@ -125,21 +125,18 @@ export async function run() {
 						const plan = await teamPlan(goal, team);
 						console.log("  → 計画:", plan.substring(0, 80) + "...");
 
-						await emitDiscordLogWithTranslation("info", `📋 **Planner's Plan**\n\n${plan}`);
+						await emitDiscordWebhook("info", `📋 **Planner's Plan**\n\n${plan}`);
 
 						const feedback = await teamCritic(goal, team, "plan", plan);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordLogWithTranslation(
-								"warning",
-								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
-							);
+							await emitDiscordWebhook("warning", `⚠️ **Critic Rejection**\n\n${feedback.reason}`);
 							if (feedback.targetRole === "planner") {
 								currentPhase = "plan";
 								criticLoops++;
 							}
 						} else {
-							await emitDiscordLogWithTranslation(
+							await emitDiscordWebhook(
 								"success",
 								`✅ **Critic: PASS**\n\nPlan approved, moving to research.`,
 							);
@@ -153,24 +150,18 @@ export async function run() {
 						const researchResult = await teamResearch(goal, team);
 						console.log("  → 調査:", researchResult.substring(0, 80) + "...");
 
-						await emitDiscordLogWithTranslation(
-							"info",
-							`🔍 **Researcher's Findings**\n\n${researchResult}`,
-						);
+						await emitDiscordWebhook("info", `🔍 **Researcher's Findings**\n\n${researchResult}`);
 
 						const feedback = await teamCritic(goal, team, "research", researchResult);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordLogWithTranslation(
-								"warning",
-								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
-							);
+							await emitDiscordWebhook("warning", `⚠️ **Critic Rejection**\n\n${feedback.reason}`);
 							if (feedback.targetRole === "researcher") {
 								currentPhase = "research";
 								criticLoops++;
 							}
 						} else {
-							await emitDiscordLogWithTranslation(
+							await emitDiscordWebhook(
 								"success",
 								`✅ **Critic: PASS**\n\nResearch approved, moving to build.`,
 							);
@@ -184,24 +175,18 @@ export async function run() {
 						const buildResult = await teamBuild(goal, team, "");
 						console.log("  → 構築:", buildResult.substring(0, 80) + "...");
 
-						await emitDiscordLogWithTranslation(
-							"info",
-							`🔨 **Builder's Implementation**\n\n${buildResult}`,
-						);
+						await emitDiscordWebhook("info", `🔨 **Builder's Implementation**\n\n${buildResult}`);
 
 						const feedback = await teamCritic(goal, team, "build", buildResult);
 						if (!feedback.passed && feedback.targetRole) {
 							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordLogWithTranslation(
-								"warning",
-								`⚠️ **Critic Rejection**\n\n${feedback.reason}`,
-							);
+							await emitDiscordWebhook("warning", `⚠️ **Critic Rejection**\n\n${feedback.reason}`);
 							if (feedback.targetRole === "builder") {
 								currentPhase = "build";
 								criticLoops++;
 							}
 						} else {
-							await emitDiscordLogWithTranslation(
+							await emitDiscordWebhook(
 								"success",
 								`✅ **Critic: PASS**\n\nBuild approved, moving to review.`,
 							);
@@ -214,14 +199,11 @@ export async function run() {
 						console.log("🔎 レビュー...");
 						const reviewResult = await teamReview(goal, team, "");
 
-						await emitDiscordLogWithTranslation(
-							"info",
-							`🔎 **Reviewer's Assessment**\n\n${reviewResult}`,
-						);
+						await emitDiscordWebhook("info", `🔎 **Reviewer's Assessment**\n\n${reviewResult}`);
 
 						if (reviewResult.includes("OK") || reviewResult.includes("成功")) {
 							console.log("🎉 チーム目標達成！");
-							await emitDiscordLogWithTranslation(
+							await emitDiscordWebhook(
 								"success",
 								`🎉 **Team Goal Achieved!**\n\nThe goal has been completed successfully.`,
 							);
@@ -229,10 +211,7 @@ export async function run() {
 							currentPhase = "done";
 						} else {
 							console.log("⚠️ レビュー指摘:", reviewResult);
-							await emitDiscordLogWithTranslation(
-								"warning",
-								`⚠️ **Review Issues Found**\n\n${reviewResult}`,
-							);
+							await emitDiscordWebhook("warning", `⚠️ **Review Issues Found**\n\n${reviewResult}`);
 							orchestrator.oneTimeInstruction = `Review feedback: ${reviewResult}. Fix the issues.`;
 							await orchestrator.dispatch(taskCheckTool, currentTask);
 							currentPhase = "build";

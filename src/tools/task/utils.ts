@@ -1,3 +1,4 @@
+import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { taskStack } from "../../core/stack-manager";
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL ?? "";
@@ -23,13 +24,5 @@ export async function emitDiscordInternalLog(level: LogLevel, message: string): 
 		content: `${header}\n${progressLine}\n\n${message}`,
 	};
 
-	try {
-		await fetch(DISCORD_WEBHOOK_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-		});
-	} catch (e) {
-		console.error("[DiscordInternalLog] Failed to send:", e);
-	}
+	emitDiscordWebhook(JSON.stringify(payload));
 }
