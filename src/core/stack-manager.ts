@@ -45,16 +45,24 @@ class StackManager {
 
 	get progress(): number {
 		const currentDepth = this.stack.length;
-		// 過去最大の「想定総数」を分母のベースにする
-		this._maxTotalSeen = Math.max(this._maxTotalSeen, this._totalPoppedCount + currentDepth);
 
-		if (this._maxTotalSeen === 0) return 0;
-		if (currentDepth === 0 && this._totalPoppedCount > 0) return 100;
+		// 1. 完了した分
+		const completed = this._totalPoppedCount;
 
-		const computed = Math.round((this._totalPoppedCount / this._maxTotalSeen) * 100);
+		// 2. 残りの推定（現在のスタック ＋ 各階層で今後見つかるであろう未知の要素）
+		// 暫定的に「深さ1につき平均2つ見つかる」と仮定するなどのバッファを持たせる
+		const estimatedRemaining = currentDepth * 1.5;
 
-		this._lastProgress = Math.max(this._lastProgress, computed);
-		return this._lastProgress;
+		const total = completed + estimatedRemaining;
+
+		if (total === 0) return 0;
+
+		const computed = Math.round((completed / total) * 100);
+
+		// 進捗は後戻りさせない
+		this._lastProgress = Math.max(this._lastProgress, Math.min(99, computed));
+
+		return currentDepth === 0 && completed > 0 ? 100 : this._lastProgress;
 	}
 
 	/**

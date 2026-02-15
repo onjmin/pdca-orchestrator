@@ -16,9 +16,32 @@ type ControlSnapshot = {
 	rationale: string;
 };
 
+type ObservationRecord = {
+	chosenTool: string | null;
+	rationale: string;
+	params: Record<string, unknown> | null;
+	result: string;
+};
+
 export const orchestrator = {
 	_oneTimeInstruction: null as string | null,
 	_predefinedArgs: null as Record<string, unknown> | null,
+
+	// --- 履歴管理用のプロパティ ---
+	observationHistory: [] as ObservationRecord[],
+	lastControlSnapshot: null as ControlSnapshot | null,
+	lastToolParameters: null as Record<string, unknown> | null,
+	_lastResult: null as ToolResponse<unknown> | null,
+
+	/**
+	 * 新しい観測結果を履歴に追加する (最大3件)
+	 */
+	pushHistory(record: ObservationRecord) {
+		this.observationHistory.push(record);
+		if (this.observationHistory.length > 3) {
+			this.observationHistory.shift(); // 古いものから削除
+		}
+	},
 
 	/**
 	 * 1ターン限定の特別指示をセットする
@@ -33,38 +56,40 @@ export const orchestrator = {
 		this._oneTimeInstruction = instruction;
 	},
 
-	lastControlSnapshot: null as ControlSnapshot | null,
-	controlHistory: [] as ControlSnapshot[],
-
-	// ツール実行直前に記録される引数
-	lastToolParameters: null as Record<string, unknown> | null,
-
-	/**
-	 * 制御判断の状態をスナップショットとして記録する（思考フェーズ）
-	 */
 	recordControlSnapshot(params: { chosenTool: string | null; rationale: string }) {
-		const snapshot: ControlSnapshot = {
+		this.lastControlSnapshot = {
 			chosenTool: params.chosenTool,
 			rationale: params.rationale,
 		};
-		this.lastControlSnapshot = snapshot;
-		this.controlHistory.push(snapshot);
+		// controlHistoryはデバッグ用等で残すなら継続、不要なら削除可
 	},
 
-	/**
-	 * 実際にツールに渡される引数を記録する（実行直前フェーズ）
-	 */
 	recordToolExecution(parameters: Record<string, unknown>) {
 		this.lastToolParameters = parameters;
 	},
 
 	/**
-	 * 内部（制御状態）と外部（Tool結果）を時系列順に統合した観測テキストを生成する
+	 * 履歴を結合してプロンプト用のテキストを生成する
 	 */
 	getCombinedObservation(): string {
 		const parts: string[] = [];
 
-		// 1. まず「自分が何をしようとしたか（思考と引数）」を出す
+		// 1. 過去の履歴 (最大3世代前まで)
+		if (this.observationHistory.length > 0) {
+			parts.push("### Past Observations (Chronological)");
+			this.observationHistory.forEach((rev, index) => {
+				const stepNum = index + 1;
+				parts.push(`#### [History ${stepNum}]`);
+				parts.push(`Action: ${rev.chosenTool || "None"}`);
+				parts.push(`Rationale: ${rev.rationale}`);
+				if (rev.params) parts.push(`Params: ${JSON.stringify(rev.params)}`);
+				parts.push(`Result: ${rev.result}`);
+				parts.push("");
+			});
+		}
+
+		// 2. 直近の（実行したばかりの）状態
+		parts.push("### Current Observation (Last Step Context)");
 		if (this.lastControlSnapshot) {
 			const { chosenTool, rationale } = this.lastControlSnapshot;
 			const params = this.lastToolParameters;
@@ -76,39 +101,41 @@ export const orchestrator = {
 			if (params && Object.keys(params).length > 0) {
 				contextText += `\nFinal Parameters: ${JSON.stringify(params)}`;
 			}
-
-			parts.push("### Internal Observation (Control Context)", contextText.trim(), "");
+			parts.push(contextText);
 		}
 
-		// 2. そのアクションに対する「結果」を最後に出す
-		parts.push("### External Observation (Last Tool Result)");
-		// lastToolResultがオブジェクトの場合は文字列化するなど、型に合わせて調整
-		const resultText =
-			typeof this.lastToolResult === "object"
-				? JSON.stringify(this.lastToolResult, null, 2)
-				: String(this.lastToolResult);
-
-		parts.push(resultText);
+		parts.push(`\nResult:\n${this.lastToolResult}`);
 
 		return parts.join("\n");
 	},
 
-	// 最新のTool execution結果を保持するバッファ
-	_lastResult: null as ToolResponse<unknown> | null,
-
 	/**
-	 * 最新の実行結果をセットする (setter)
+	 * 実行完了時に呼ばれ、現在のスナップショットと結果を履歴へ保存する
 	 */
-	set lastToolResult(result: ToolResponse<unknown> | null) {
-		this._lastResult = result;
+	finalizeStep() {
+		if (this.lastControlSnapshot) {
+			this.pushHistory({
+				chosenTool: this.lastControlSnapshot.chosenTool,
+				rationale: this.lastControlSnapshot.rationale,
+				params: this.lastToolParameters,
+				result: this.lastToolResult, // getter経由でtruncate済みの文字列を取得
+			});
+		}
+		// 次のステップのためにクリア（必要に応じて）
+		// this.lastControlSnapshot = null;
+		// this.lastToolParameters = null;
 	},
 
-	/**
-	 * プロンプト用に成形された観測結果（文字列）を取得する (getter)
-	 */
+	set lastToolResult(result: ToolResponse<unknown> | null) {
+		this._lastResult = result;
+		// 実行結果がセットされたタイミングで、そのターンの思考と結果を履歴にパッキングする
+		if (result) {
+			this.finalizeStep();
+		}
+	},
+
 	get lastToolResult(): string {
 		if (!this._lastResult) return "No previous action.";
-
 		return truncateForPrompt(JSON.stringify(this._lastResult, null, 2), 2000);
 	},
 
