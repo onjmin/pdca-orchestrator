@@ -132,10 +132,6 @@ Current Task: ${currentTask.title}
 Description: ${currentTask.description}
 DoD: ${currentTask.dod}
 Strategy: ${currentTask.strategy || "None (Need to plan?)"}
-Reasoning: ${currentTask.reasoning || "None"}
-
-### Completed Progress
-${historyText}
         `.trim();
 
 		const tools = Array.from(registry.entries())
@@ -144,25 +140,40 @@ ${historyText}
 
 		const observationText = this.getCombinedObservation();
 
+		// 💡 改善点: 推論プロセスを構造化し、DoDとの差分を意識させるプロンプトに変更
 		const prompt = `
-You are an autonomous agent.
+You are an autonomous agent operating under a strict logical framework.
 
-### Goal and Strategy
+### 🎯 Goal (Definition of Done)
 ${taskInfo}
 
-### Available Tools
+### ✅ Completed Progress (Facts)
+${historyText}
+
+### 🛠 Available Tools
 ${tools}
 
-### Observation
+### 🔍 Observation (The ONLY Source of Truth)
 ${observationText}
 
+### 🧠 Required Reasoning Steps (Mandatory)
+Before deciding on a tool, you MUST perform these steps internally:
+
+1. **Confirmed World State**: Extract and list ONLY confirmed facts from the latest observation. (e.g., "File X exists", "Tests failed with Error Y"). Ignore assumptions.
+2. **DoD Gap Evaluation**: Compare the World State against the DoD. List exactly which conditions are still "UNMET".
+3. **Action Justification**:
+   - If no "UNMET" conditions remain, you MUST choose \`task.check\`.
+   - If a file already exists in the World State, you MUST NOT call \`file.create\`.
+   - Distinguish between "Existence" and "Behavior" (Code existence does not mean it works).
+
 ### Instruction
-Based on the current task, strategy, and observation, which tool should you execute next?
-${this.oneTimeInstruction}
+${this.oneTimeInstruction || "Determine the next action based on the Gap Evaluation above."}
 
 Respond in the following format:
-Rationale: (Your brief reasoning for this choice)
-Tool: (The exact tool name from the list above)
+Confirmed World State: (Facts from last observation)
+DoD Gap Evaluation: (Unmet conditions)
+Rationale: (Brief logic for tool choice and why it solves the gap)
+Tool: (The exact tool name)
         `.trim();
 
 		console.log(`[Brain] Choosing next step for: ${currentTask.title}`);
