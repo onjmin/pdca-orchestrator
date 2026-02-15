@@ -20,9 +20,5 @@ export async function emitDiscordInternalLog(level: LogLevel, message: string): 
 	const header = `**[${level.toUpperCase()}]** \`${progress}%\``;
 	const progressLine = `\`${progressBar}\` (Pop: ${taskStack.totalPoppedCount}, Depth: ${taskStack.length})`;
 
-	const payload = {
-		content: `${header}\n${progressLine}\n\n${message}`,
-	};
-
-	emitDiscordWebhook(JSON.stringify(payload));
+	emitDiscordWebhook(`${header}\n${progressLine}\n\n${message}`);
 }
