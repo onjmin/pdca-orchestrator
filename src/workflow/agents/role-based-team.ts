@@ -5,6 +5,7 @@ import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { llm } from "../../core/llm-client";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
+import { truncateForPrompt } from "../../core/utils";
 import { aiTroubleshootTool } from "../../tools/ai/troubleshoot";
 import { fileCreateTool } from "../../tools/file/create";
 import { fileGrepTool } from "../../tools/file/grep";
@@ -169,19 +170,29 @@ function buildContext(): string {
 	if (orchestrator.lastControlSnapshot) {
 		const { chosenTool, rationale } = orchestrator.lastControlSnapshot;
 		parts.push(`Last Action: ${chosenTool || "none"}`);
-		parts.push(`Rationale: ${rationale}`);
+		// 思考プロセスの要約
+		parts.push(`Rationale: ${truncateForPrompt(rationale, 500)}`);
 	}
 
 	if (orchestrator.lastToolParameters) {
-		parts.push(`Parameters: ${JSON.stringify(orchestrator.lastToolParameters)}`);
+		// パラメータ（書き込みコードなど）の肥大化対策
+		const paramStr = JSON.stringify(orchestrator.lastToolParameters);
+		parts.push(`Parameters: ${truncateForPrompt(paramStr, 1000)}`);
 	}
 
 	if (orchestrator.lastToolResult) {
-		parts.push(`Result: ${orchestrator.lastToolResult}`);
+		// ツール実行結果（ファイル読み込み内容など）の制限
+		parts.push(`Result: ${truncateForPrompt(String(orchestrator.lastToolResult), 2000)}`);
 	}
 
-	for (const record of orchestrator.observationHistory) {
-		parts.push(`History[${record.chosenTool}]: ${record.result.substring(0, 100)}`);
+	// 履歴の蓄積対策：直近5件に絞り、各件も短く切り詰める
+	const maxHistoryItems = 5;
+	const history = orchestrator.observationHistory.slice(-maxHistoryItems);
+
+	for (const record of history) {
+		// 改行をスペースに置換して1行にしつつ切り詰め
+		const flatResult = record.result.replace(/\n/g, " ");
+		parts.push(`History[${record.chosenTool}]: ${truncateForPrompt(flatResult, 200)}`);
 	}
 
 	return parts.join("\n");
@@ -191,6 +202,9 @@ async function verifyWithReviewer(
 	goal: { title: string; description: string; dod: string },
 	context: string,
 ): Promise<{ success: boolean; message: string }> {
+	// コンテキスト全体が大きくなりすぎないよう、プロンプト投入直前で最終防衛
+	const safeContext = truncateForPrompt(context, 6000);
+
 	const prompt = `
 You are the REVIEWER role. Verify if the current work aligns with the goal.
 
@@ -200,7 +214,7 @@ ${goal.description}
 ${goal.dod}
 
 Current Context:
-${context}
+${safeContext}
 
 Respond with:
 - "OK" if the work is progressing correctly
@@ -213,7 +227,7 @@ Respond with:
 		return { success: true, message: "" };
 	}
 
-	return { success: false, message: result };
+	return { success: false, message: truncateForPrompt(result, 1000) };
 }
 
 function parseGoal(content: string): { title: string; description: string; dod: string } {
