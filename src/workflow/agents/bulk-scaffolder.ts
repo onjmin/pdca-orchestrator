@@ -91,9 +91,7 @@ command
 			} else if (shellCommand) {
 				console.log(`💻 Executing: ${shellCommand.trim()}`);
 				await shellExecTool.handler({
-					command: shellCommand.trim(),
-					cwd: baseDir,
-					timeout: 60000,
+					cmd: shellCommand.trim(),
 				});
 			}
 			match = pattern.exec(rawOutput);
@@ -101,7 +99,7 @@ command
 
 		// --- 2. 仕上げの npm i & npm test ---
 		console.log("🛠️  依存関係の整合性チェック (npm i)...");
-		await shellExecTool.handler({ command: "npm i", cwd: baseDir, timeout: 300000 });
+		await shellExecTool.handler({ cmd: "npm i", });
 
 		// --- 3. [PACKAGES] のパースと実行 ---
 		const pkgMatch = /\[PACKAGES\]\n([\s\S]*?)\n\[\/PACKAGES\]/.exec(rawOutput);
@@ -109,17 +107,13 @@ command
 			const packages = pkgMatch[1].trim().replace(/\n/g, " ");
 			console.log(`📦 指定された資材を搬入（npm install）: ${packages}`);
 			await shellExecTool.handler({
-				command: `npm install ${packages}`,
-				cwd: baseDir,
-				timeout: 300000,
+				cmd: `npm install ${packages}`,
 			});
 		}
 
 		console.log("🧪 完成検査 (npm test) を開始...");
 		const testResponse = await shellExecTool.handler({
-			command: "npm test",
-			cwd: baseDir,
-			timeout: 60000,
+			cmd: "npm test",
 		});
 
 		if (testResponse.success) {
