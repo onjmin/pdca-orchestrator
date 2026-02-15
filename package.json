@@ -9,6 +9,8 @@
     "scaffold": "tsx src/workflow/agents/bulk-scaffolder.ts",
     "decompose": "tsx src/workflow/agents/task-decomposer.ts",
     "self-correct": "tsx src/workflow/agents/self-correcting-agent.ts",
+    "parallel": "tsx src/workflow/agents/parallel-worker.ts",
+    "team": "tsx src/workflow/agents/role-based-team.ts",
     "lint": "biome check src",
     "test:file": "tsx src/workflow/tests/file-create-test.ts",
     "test:shell": "tsx src/workflow/tests/shell-exec-test.ts",
