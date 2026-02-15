@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
+import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { llm } from "../../core/llm-client";
 import { fileCreateTool } from "../../tools/file/create";
 import { fileListTreeTool } from "../../tools/file/list_tree";
@@ -15,6 +16,10 @@ import { shellExecTool } from "../../tools/shell/exec";
  */
 export async function run() {
 	console.log("--- 足場職人が起きました（一括構築・自動検査モード） ---");
+
+	await emitDiscordWebhook(
+		"# 🎬 一括足場構築開始\n\n一括足場構築エージェントが目標の処理を開始しました。",
+	);
 
 	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let goalContent = "";
@@ -99,7 +104,7 @@ command
 
 		// --- 2. 仕上げの npm i & npm test ---
 		console.log("🛠️  依存関係の整合性チェック (npm i)...");
-		await shellExecTool.handler({ cmd: "npm i", });
+		await shellExecTool.handler({ cmd: "npm i" });
 
 		// --- 3. [PACKAGES] のパースと実行 ---
 		const pkgMatch = /\[PACKAGES\]\n([\s\S]*?)\n\[\/PACKAGES\]/.exec(rawOutput);
@@ -147,4 +152,5 @@ ${treeOutput}
 ${goalContent}
 `.trim();
 	}
+	await emitDiscordWebhook("# 🏁 一括足場構築完了\n\n一括足場構築エージェントが完了しました。");
 }

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
 import { initDebugLog, isDebugMode, setLogTurn } from "../../core/debug-log";
+import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
 import { aiTroubleshootTool } from "../../tools/ai/troubleshoot";
@@ -69,6 +70,10 @@ const observationRegistry = new Map([...observationTools].map((e) => [e.name, e]
 
 export async function run() {
 	console.log("--- 小人が起きました ---");
+
+	await emitDiscordWebhook(
+		"# 🎬 タスク分解開始\n\nタスク分解エージェントが目標の処理を開始しました。",
+	);
 
 	// 初期タスク読み込み
 	const goalPath = resolve(process.cwd(), "GOAL.md");
@@ -191,5 +196,7 @@ Review your strategy.
 		}
 	} finally {
 		console.log("--- 小人が道具を片付けて寝ます ---");
+
+		await emitDiscordWebhook("# 🏁 タスク分解完了\n\nタスク分解エージェントが完了しました。");
 	}
 }

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
+import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { llm } from "../../core/llm-client";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
@@ -59,6 +60,10 @@ const allRegistry = new Map(allTools.map((e) => [e.name, e]));
 
 export async function run() {
 	console.log("--- チーム職人が起きました（批判者付き） ---");
+
+	await emitDiscordWebhook(
+		"# 🎬 チーム開発開始\n\n役割分担チームエージェントが目標の処理を開始しました。",
+	);
 
 	const goalPath = resolve(process.cwd(), "GOAL.md");
 	let goalContent = "";
@@ -153,6 +158,7 @@ Then execute the team workflow (plan -> research -> build -> review) for each su
 		}
 	} finally {
 		await emitDiscordInternalLog("success", "🏁 **Team Finished**");
+		await emitDiscordWebhook("# 🏁 チーム開発完了\n\n役割分担チームエージェントが完了しました。");
 		console.log("--- チームが解散しました ---");
 	}
 }
