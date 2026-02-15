@@ -1,4 +1,4 @@
-import { emitDiscordWebhook } from "../../core/discord-webhook";
+import { emitDiscordWebhookTranslated } from "../../core/discord-webhook";
 import { taskStack } from "../../core/stack-manager";
 
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL ?? "";
@@ -20,5 +20,5 @@ export async function emitDiscordInternalLog(level: LogLevel, message: string): 
 	const header = `**[${level.toUpperCase()}]** \`${progress}%\``;
 	const progressLine = `\`${progressBar}\` (Pop: ${taskStack.totalPoppedCount}, Depth: ${taskStack.length})`;
 
-	emitDiscordWebhook(`${header}\n${progressLine}\n\n${message}`);
+	emitDiscordWebhookTranslated(`${header}\n${progressLine}\n\n${message}`);
 }

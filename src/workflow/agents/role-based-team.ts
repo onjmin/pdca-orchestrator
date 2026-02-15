@@ -1,27 +1,28 @@
 import "dotenv/config";
 import { promises as fs } from "node:fs";
 import { resolve } from "node:path";
-import { emitDiscordWebhook } from "../../core/discord-webhook";
 import { llm } from "../../core/llm-client";
 import { orchestrator } from "../../core/orchestrator";
 import { taskStack } from "../../core/stack-manager";
-import { truncateForPrompt } from "../../core/utils";
+import { aiTroubleshootTool } from "../../tools/ai/troubleshoot";
+import { fileCreateTool } from "../../tools/file/create";
+import { fileGrepTool } from "../../tools/file/grep";
+import { fileInsertAtTool } from "../../tools/file/insert_at";
+import { fileListTreeTool } from "../../tools/file/list_tree";
+import { filePatchTool } from "../../tools/file/patch";
+import { fileReadLinesTool } from "../../tools/file/read_lines";
+import { shellExecTool } from "../../tools/shell/exec";
 import { taskCheckTool } from "../../tools/task/check";
+import { taskPlanTool } from "../../tools/task/plan";
+import { taskSplitTool } from "../../tools/task/split";
+import { emitDiscordInternalLog } from "../../tools/task/utils";
 
 type Role = "planner" | "researcher" | "builder" | "reviewer" | "critic";
-type Phase = "plan" | "research" | "build" | "review" | "done";
 
 interface TeamMember {
 	role: Role;
 	description: string;
 	tools: string[];
-	completed: string[];
-}
-
-interface CriticFeedback {
-	passed: boolean;
-	targetRole: Role | null;
-	reason: string;
 }
 
 const roleDescriptions: Record<Role, string> = {
@@ -33,12 +34,28 @@ const roleDescriptions: Record<Role, string> = {
 };
 
 const roleTools: Record<Role, string[]> = {
-	planner: ["task.plan", "task.split", "fileListTreeTool"],
-	researcher: ["fileGrepTool", "fileReadLinesTool", "webSearchTool", "webFetchTool"],
-	builder: ["fileCreateTool", "fileInsertAtTool", "filePatchTool", "shellExecTool"],
-	reviewer: ["taskCheckTool", "aiTroubleshootTool", "shellExecTool"],
-	critic: ["aiTroubleshootTool", "fileGrepTool"],
+	planner: [taskPlanTool.name, taskSplitTool.name, fileListTreeTool.name],
+	researcher: [fileGrepTool.name, fileReadLinesTool.name, "web.search", "web.fetch"],
+	builder: [fileCreateTool.name, fileInsertAtTool.name, filePatchTool.name, shellExecTool.name],
+	reviewer: [taskCheckTool.name, aiTroubleshootTool.name, shellExecTool.name],
+	critic: [aiTroubleshootTool.name, fileGrepTool.name],
 };
+
+const allTools = [
+	aiTroubleshootTool,
+	fileCreateTool,
+	fileGrepTool,
+	fileInsertAtTool,
+	fileListTreeTool,
+	filePatchTool,
+	fileReadLinesTool,
+	shellExecTool,
+	taskCheckTool,
+	taskPlanTool,
+	taskSplitTool,
+];
+
+const allRegistry = new Map(allTools.map((e) => [e.name, e]));
 
 export async function run() {
 	console.log("--- チーム職人が起きました（批判者付き） ---");
@@ -54,36 +71,11 @@ export async function run() {
 	}
 
 	const team: TeamMember[] = [
-		{
-			role: "planner",
-			description: roleDescriptions.planner,
-			tools: roleTools.planner,
-			completed: [],
-		},
-		{
-			role: "researcher",
-			description: roleDescriptions.researcher,
-			tools: roleTools.researcher,
-			completed: [],
-		},
-		{
-			role: "builder",
-			description: roleDescriptions.builder,
-			tools: roleTools.builder,
-			completed: [],
-		},
-		{
-			role: "reviewer",
-			description: roleDescriptions.reviewer,
-			tools: roleTools.reviewer,
-			completed: [],
-		},
-		{
-			role: "critic",
-			description: roleDescriptions.critic,
-			tools: roleTools.critic,
-			completed: [],
-		},
+		{ role: "planner", description: roleDescriptions.planner, tools: roleTools.planner },
+		{ role: "researcher", description: roleDescriptions.researcher, tools: roleTools.researcher },
+		{ role: "builder", description: roleDescriptions.builder, tools: roleTools.builder },
+		{ role: "reviewer", description: roleDescriptions.reviewer, tools: roleTools.reviewer },
+		{ role: "critic", description: roleDescriptions.critic, tools: roleTools.critic },
 	];
 
 	console.log("👥 チーム編成:");
@@ -99,9 +91,13 @@ export async function run() {
 		turns: 0,
 	});
 
+	await emitDiscordInternalLog(
+		"info",
+		`👥 **Team Started** - ${goal.title}\n\nTeam: ${team.map((m) => m.role).join(", ")}`,
+	);
+
 	let turn = 0;
 	const MAX_TURNS = 80;
-	const MAX_CRITIC_LOOPS = 3;
 
 	try {
 		while (!taskStack.isEmpty()) {
@@ -111,103 +107,44 @@ export async function run() {
 			const currentTask = taskStack.currentTask;
 			if (!currentTask) break;
 
-			let currentPhase: Phase = "plan";
-			let criticLoops = 0;
+			currentTask.turns++;
 
-			while (currentPhase !== "done") {
-				switch (currentPhase) {
-					case "plan": {
-						console.log("📋 計画フェーズ...");
-						const plan = await teamPlan(goal, team);
-						console.log(`  → 計画: ${truncateForPrompt(plan, 80)}`);
+			await emitDiscordInternalLog(
+				"info",
+				`🔄 **Turn ${turn}** - Current Task: ${currentTask.title}`,
+			);
 
-						await emitDiscordWebhook(`📋 **Planner's Plan**\n\n${plan}`);
+			orchestrator.oneTimeInstruction = `
+You are leading a team to accomplish the goal. First, analyze the goal and decide if it needs to be split into smaller sub-tasks.
+If the goal is complex, use 'task.split' to break it down.
+Then execute the team workflow (plan -> research -> build -> review) for each sub-task.
+`.trim();
 
-						const feedback = await teamCritic(goal, team, "plan", plan);
-						if (!feedback.passed && feedback.targetRole) {
-							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordWebhook(`⚠️ **Critic Rejection**\n\n${feedback.reason}`);
-							if (feedback.targetRole === "planner") {
-								currentPhase = "plan";
-								criticLoops++;
-							}
-						} else {
-							console.log("✅ Critic: PASS");
-							currentPhase = "research";
-							criticLoops = 0;
-						}
-						break;
-					}
-					case "research": {
-						console.log("🔍 研究フェーズ...");
-						const researchResult = await teamResearch(goal, team);
-						console.log(`  → 調査: ${truncateForPrompt(researchResult, 80)}`);
+			const nextTool = await orchestrator.selectNextTool(allRegistry);
 
-						await emitDiscordWebhook(`🔍 **Researcher's Findings**\n\n${researchResult}`);
+			if (!nextTool) {
+				console.log("❌ ツールが選択できませんでした");
+				break;
+			}
 
-						const feedback = await teamCritic(goal, team, "research", researchResult);
-						if (!feedback.passed && feedback.targetRole) {
-							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordWebhook(`⚠️ **Critic Rejection**\n\n${feedback.reason}`);
-							if (feedback.targetRole === "researcher") {
-								currentPhase = "research";
-								criticLoops++;
-							}
-						} else {
-							console.log("✅ Critic: PASS");
-							currentPhase = "build";
-							criticLoops = 0;
-						}
-						break;
-					}
-					case "build": {
-						console.log("🔨 構築フェーズ...");
-						const buildResult = await teamBuild(goal, team, "");
-						console.log(`  → 構築: ${truncateForPrompt(buildResult, 80)}`);
+			console.log(`🔧 選択されたツール: ${nextTool.name}`);
 
-						await emitDiscordWebhook(`🔨 **Builder's Implementation**\n\n${buildResult}`);
+			await orchestrator.dispatch(nextTool, currentTask);
 
-						const feedback = await teamCritic(goal, team, "build", buildResult);
-						if (!feedback.passed && feedback.targetRole) {
-							console.log(`⚠️ Critic: ${feedback.reason}`);
-							await emitDiscordWebhook(`⚠️ **Critic Rejection**\n\n${feedback.reason}`);
-							if (feedback.targetRole === "builder") {
-								currentPhase = "build";
-								criticLoops++;
-							}
-						} else {
-							console.log("✅ Critic: PASS");
-							currentPhase = "review";
-							criticLoops = 0;
-						}
-						break;
-					}
-					case "review": {
-						console.log("🔎 レビュー...");
-						const reviewResult = await teamReview(goal, team, "");
+			const context = buildContext();
+			console.log(`📊 Context: ${context.substring(0, 100)}...`);
 
-						await emitDiscordWebhook(`🔎 **Reviewer's Assessment**\n\n${reviewResult}`);
+			if (nextTool === taskSplitTool) {
+				console.log("📋 タスク分割が発生しました");
+				const stack = taskStack.getStack();
+				console.log(`   スタックサイズ: ${stack.length}`);
+			}
 
-						if (reviewResult.includes("OK") || reviewResult.includes("成功")) {
-							console.log("🎉 チーム目標達成！");
-							taskStack.pop();
-							currentPhase = "done";
-						} else {
-							console.log("⚠️ レビュー指摘:", reviewResult);
-							await emitDiscordWebhook(`⚠️ **Review Issues Found**\n\n${reviewResult}`);
-							orchestrator.oneTimeInstruction = `Review feedback: ${reviewResult}. Fix the issues.`;
-							await orchestrator.dispatch(taskCheckTool, currentTask);
-							currentPhase = "build";
-						}
-						break;
-					}
-				}
-
-				if (criticLoops >= MAX_CRITIC_LOOPS) {
-					console.log("⚠️ Criticループ限界突破、次のフェーズへ");
-					currentPhase = getNextPhase(currentPhase);
-					criticLoops = 0;
-				}
+			const checkResult = await verifyWithReviewer(goal, context);
+			if (!checkResult.success) {
+				console.log(`⚠️ レビュー指摘: ${checkResult.message}`);
+				orchestrator.oneTimeInstruction = `Previous work had issues: ${checkResult.message}. Fix and retry.`;
+				await orchestrator.dispatch(taskCheckTool, currentTask);
 			}
 
 			if (turn >= MAX_TURNS) {
@@ -215,14 +152,62 @@ export async function run() {
 			}
 		}
 	} finally {
+		await emitDiscordInternalLog("success", "🏁 **Team Finished**");
 		console.log("--- チームが解散しました ---");
 	}
 }
 
-function getNextPhase(current: Phase): Phase {
-	const order: Phase[] = ["plan", "research", "build", "review"];
-	const idx = order.indexOf(current);
-	return order[(idx + 1) % order.length];
+function buildContext(): string {
+	const parts: string[] = [];
+
+	if (orchestrator.lastControlSnapshot) {
+		const { chosenTool, rationale } = orchestrator.lastControlSnapshot;
+		parts.push(`Last Action: ${chosenTool || "none"}`);
+		parts.push(`Rationale: ${rationale}`);
+	}
+
+	if (orchestrator.lastToolParameters) {
+		parts.push(`Parameters: ${JSON.stringify(orchestrator.lastToolParameters)}`);
+	}
+
+	if (orchestrator.lastToolResult) {
+		parts.push(`Result: ${orchestrator.lastToolResult}`);
+	}
+
+	for (const record of orchestrator.observationHistory) {
+		parts.push(`History[${record.chosenTool}]: ${record.result.substring(0, 100)}`);
+	}
+
+	return parts.join("\n");
+}
+
+async function verifyWithReviewer(
+	goal: { title: string; description: string; dod: string },
+	context: string,
+): Promise<{ success: boolean; message: string }> {
+	const prompt = `
+You are the REVIEWER role. Verify if the current work aligns with the goal.
+
+GOAL:
+${goal.title}
+${goal.description}
+${goal.dod}
+
+Current Context:
+${context}
+
+Respond with:
+- "OK" if the work is progressing correctly
+- Specific issues that need to be fixed
+`.trim();
+
+	const result = await llm.complete(prompt);
+
+	if (result.includes("OK") || result.includes("Success")) {
+		return { success: true, message: "" };
+	}
+
+	return { success: false, message: result };
 }
 
 function parseGoal(content: string): { title: string; description: string; dod: string } {
@@ -231,143 +216,4 @@ function parseGoal(content: string): { title: string; description: string; dod: 
 		throw new Error("Invalid GOAL format");
 	}
 	return { title: parts[0], description: parts[1], dod: parts[2] };
-}
-
-async function teamPlan(
-	goal: { title: string; description: string; dod: string },
-	team: TeamMember[],
-): Promise<string> {
-	const teamInfo = team
-		.filter((t) => t.role !== "critic")
-		.map((t) => `${t.role}: ${t.description}`)
-		.join("\n");
-
-	const prompt = `
-You are the PLANNER role in a development team.
-
-Team members:
-${teamInfo}
-
-GOAL:
-${goal.title}
-${goal.description}
-${goal.dod}
-
-Create a brief plan (2-3 sentences) on how the team should approach this goal.
-Focus on which roles should do what.
-`.trim();
-
-	return await llm.complete(prompt);
-}
-
-async function teamResearch(
-	goal: { title: string; description: string; dod: string },
-	team: TeamMember[],
-): Promise<string> {
-	const prompt = `
-You are the RESEARCHER role. Your job is to gather information needed to accomplish the goal.
-
-GOAL:
-${goal.title}
-${goal.description}
-
-Provide a summary of what you would investigate and what information is needed.
-List specific areas to research (files, docs, configs, etc.).
-`.trim();
-
-	return await llm.complete(prompt);
-}
-
-async function teamBuild(
-	goal: { title: string; description: string; dod: string },
-	team: TeamMember[],
-	_research: string,
-): Promise<string> {
-	const prompt = `
-You are the BUILDER role. Implement the solution to achieve the goal.
-
-GOAL:
-${goal.title}
-${goal.description}
-
-Describe what files you would create or modify, and what commands you would run.
-`.trim();
-
-	return await llm.complete(prompt);
-}
-
-async function teamReview(
-	goal: { title: string; description: string; dod: string },
-	team: TeamMember[],
-	_buildResult: string,
-): Promise<string> {
-	const prompt = `
-You are the REVIEWER role. Verify if the implementation meets the goal.
-
-GOAL:
-${goal.title}
-${goal.dod}
-
-Respond with either:
-- "OK" if the goal appears to be met
-- Specific issues that need to be fixed
-`.trim();
-
-	return await llm.complete(prompt);
-}
-
-async function teamCritic(
-	goal: { title: string; description: string; dod: string },
-	team: TeamMember[],
-	phase: Phase,
-	output: string,
-): Promise<CriticFeedback> {
-	const phaseDescriptions: Record<Phase, string> = {
-		plan: "the planner's strategy",
-		research: "the researcher's findings",
-		build: "the builder's implementation plan",
-		review: "the reviewer's assessment",
-		done: "completed",
-	};
-
-	const prompt = `
-You are the CRITIC role. Your job is to critically review other team members' work and identify weaknesses.
-
-GOAL:
-${goal.title}
-${goal.description}
-
-Review phase: ${phase}
-Content to review:
-${output}
-
-Evaluate ${phaseDescriptions[phase]} critically.
-
-Respond with EXACTLY one of these formats:
-- "PASS" - if the work is acceptable
-- "REJECT: <target_role>: <reason>" - if there are issues that need fixing
-  - target_role must be one of: planner, researcher, builder, reviewer
-  - reason must be specific and actionable
-
-Examples:
-- "PASS"
-- "REJECT: researcher: Missing information about API endpoints"
-- "REJECT: builder: No error handling specified"
-`.trim();
-
-	const result = await llm.complete(prompt);
-	const trimmed = result.trim();
-
-	if (trimmed.startsWith("PASS")) {
-		return { passed: true, targetRole: null, reason: "" };
-	}
-
-	const match = trimmed.match(/REJECT: (\w+): (.+)/);
-	if (match) {
-		const targetRole = match[1] as Role;
-		const reason = match[2];
-		return { passed: false, targetRole, reason };
-	}
-
-	return { passed: true, targetRole: null, reason: "" };
 }
