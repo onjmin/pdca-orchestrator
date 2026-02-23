@@ -3,7 +3,7 @@ import { llm } from "../../core/llm-client";
 
 async function testLLM() {
 	console.log("--- LLM Connection Test Start ---");
-	console.log(`Target URL: ${process.env.LLM_API_URL || "Default (LM Studio)"}`);
+	console.log(`Target URL: ${process.env.LLM_BASE_URL || "Default (LM Studio)"}`);
 	console.log(`Target Model: ${process.env.LLM_MODEL || "Default"}`);
 
 	try {

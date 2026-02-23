@@ -9,6 +9,7 @@
     "start1": "tsx -e \"import { run } from './src/workflow/agents/task-decomposer.ts'; run()\"",
     "start2": "tsx -e \"import { run } from './src/workflow/agents/bulk-scaffolder.ts'; run()\"",
     "start3": "tsx -e \"import { run } from './src/workflow/agents/role-based-team.ts'; run()\"",
+    "start4": "tsx -e \"import { run } from './src/workflow/agents/opencode-like-agent.ts'; run()\"",
     "lint": "biome check src",
     "test:file": "tsx src/workflow/tests/file-create-test.ts",
     "test:shell": "tsx src/workflow/tests/shell-exec-test.ts",
